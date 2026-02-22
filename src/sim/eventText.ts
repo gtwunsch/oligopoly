@@ -59,8 +59,9 @@ export function buildEventWhy(
   state: GameState,
   executedDecisions: Decision[],
   decisionCatalog: Decision[],
+  includeActionLead = true,
 ): string {
-  if (!event.useLastActionLead) {
+  if (!event.useLastActionLead || !includeActionLead) {
     return event.why;
   }
 

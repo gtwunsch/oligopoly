@@ -323,9 +323,9 @@ export function advanceTurn(state: GameState): GameState {
     if (ev.causalHint) {
       turnCausalHints.push(ev.causalHint);
     }
-    const headline = buildEventHeadline(ev, next);
-    const why = buildEventWhy(ev, next, executedDecisions, decisions);
     const attribution = buildAttributionText(ev, executedDecisions, next.lastTurnActions);
+    const headline = buildEventHeadline(ev, next);
+    const why = buildEventWhy(ev, next, executedDecisions, decisions, !attribution);
     const details = attribution ? `${why} ${attribution}` : why;
     newLog.push({ turn: next.turn + 1, text: `${headline}: ${details}`, type: 'event' });
   }
