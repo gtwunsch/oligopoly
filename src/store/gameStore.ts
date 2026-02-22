@@ -1,10 +1,13 @@
 import { create } from 'zustand';
 import type { GameState, Portfolio } from '../sim/types';
 import {
+  applyChoiceEvent,
   createNewGame,
   advanceTurn,
   decisions,
+  hasChoiceEventDefinition,
   normalizeCashBuckets,
+  pickChoiceEventForTurn,
   rebalanceCashBuckets,
 } from '../sim';
 
@@ -14,6 +17,7 @@ const DEFAULT_REPUTATION = 70;
 const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 const DEFAULT_ACTION_HISTORY: GameState['actionHistory'] = [];
+const DEFAULT_ACTIVE_CHOICE_EVENT: GameState['activeChoiceEvent'] = null;
 const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
   turn: 0,
   deltas: {
@@ -39,14 +43,71 @@ function sanitizeActionHistory(
       }
       const target = (entry as { target?: unknown }).target;
       const magnitude = (entry as { magnitude?: unknown }).magnitude;
+      const choice = (entry as { choice?: unknown }).choice;
       return {
         turn: Math.max(0, Math.floor(turn)),
         actionId,
+        ...(choice === 'A' || choice === 'B' ? { choice } : {}),
         ...(typeof target === 'string' ? { target } : {}),
         ...(typeof magnitude === 'number' && Number.isFinite(magnitude) ? { magnitude } : {}),
       };
     })
     .filter((entry): entry is GameState['actionHistory'][number] => entry !== null);
+}
+
+function sanitizeActiveChoiceEvent(
+  choiceEvent: Partial<GameState>['activeChoiceEvent'],
+): GameState['activeChoiceEvent'] {
+  if (!choiceEvent || typeof choiceEvent !== 'object') {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  const id = (choiceEvent as { id?: unknown }).id;
+  const headline = (choiceEvent as { headline?: unknown }).headline;
+  const why = (choiceEvent as { why?: unknown }).why;
+  const optionA = (choiceEvent as { optionA?: unknown }).optionA;
+  const optionB = (choiceEvent as { optionB?: unknown }).optionB;
+
+  if (
+    typeof id !== 'string' ||
+    !hasChoiceEventDefinition(id) ||
+    typeof headline !== 'string' ||
+    typeof why !== 'string' ||
+    !optionA ||
+    typeof optionA !== 'object' ||
+    !optionB ||
+    typeof optionB !== 'object'
+  ) {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  const optionALabel = (optionA as { label?: unknown }).label;
+  const optionAImpact = (optionA as { impact?: unknown }).impact;
+  const optionBLabel = (optionB as { label?: unknown }).label;
+  const optionBImpact = (optionB as { impact?: unknown }).impact;
+
+  if (
+    typeof optionALabel !== 'string' ||
+    typeof optionAImpact !== 'string' ||
+    typeof optionBLabel !== 'string' ||
+    typeof optionBImpact !== 'string'
+  ) {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  return {
+    id,
+    headline,
+    why,
+    optionA: {
+      label: optionALabel,
+      impact: optionAImpact,
+    },
+    optionB: {
+      label: optionBLabel,
+      impact: optionBImpact,
+    },
+  };
 }
 
 function sanitizeLastTurnSummary(
@@ -115,6 +176,7 @@ interface GameActions {
   queueDecision: (decisionId: string) => void;
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
+  resolveChoiceEvent: (choice: 'A' | 'B') => void;
   dismissSummary: () => void;
   save: () => void;
   load: () => boolean;
@@ -183,6 +245,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnCausalHints: state.lastTurnCausalHints,
       lastTurnActions: state.lastTurnActions,
       actionHistory: state.actionHistory,
+      activeChoiceEvent: state.activeChoiceEvent,
       lastTurnSummary: state.lastTurnSummary,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
@@ -190,6 +253,52 @@ export const useGameStore = create<GameStore>((set, get) => ({
       seed: state.seed,
       score: state.score,
     };
+
+    const choiceEvent = pickChoiceEventForTurn(snapshot);
+    if (choiceEvent) {
+      set({
+        ...snapshot,
+        activeChoiceEvent: choiceEvent,
+        phase: 'choice',
+      });
+      return;
+    }
+
+    const next = advanceTurn(snapshot);
+    set({ ...next, phase: next.phase === 'gameover' ? 'gameover' : 'summary' });
+  },
+
+  resolveChoiceEvent: (choice) => {
+    const state = get();
+    if (state.phase !== 'choice' || !state.activeChoiceEvent) return;
+
+    const withChoiceApplied = applyChoiceEvent(state, state.activeChoiceEvent.id, choice);
+    const snapshot: GameState = {
+      turn: withChoiceApplied.turn,
+      year: withChoiceApplied.year,
+      quarter: withChoiceApplied.quarter,
+      scenarioId: withChoiceApplied.scenarioId,
+      scenarioName: withChoiceApplied.scenarioName,
+      countries: withChoiceApplied.countries,
+      eventWeightBias: withChoiceApplied.eventWeightBias,
+      worldFlags: withChoiceApplied.worldFlags,
+      portfolio: withChoiceApplied.portfolio,
+      reputation: withChoiceApplied.reputation,
+      winTargetAum: withChoiceApplied.winTargetAum,
+      maxTurns: withChoiceApplied.maxTurns,
+      outcome: withChoiceApplied.outcome,
+      lastTurnCausalHints: withChoiceApplied.lastTurnCausalHints,
+      lastTurnActions: withChoiceApplied.lastTurnActions,
+      actionHistory: withChoiceApplied.actionHistory,
+      activeChoiceEvent: null,
+      lastTurnSummary: withChoiceApplied.lastTurnSummary,
+      log: withChoiceApplied.log,
+      pendingDecisions: withChoiceApplied.pendingDecisions,
+      phase: 'playing',
+      seed: withChoiceApplied.seed,
+      score: withChoiceApplied.score,
+    };
+
     const next = advanceTurn(snapshot);
     set({ ...next, phase: next.phase === 'gameover' ? 'gameover' : 'summary' });
   },
@@ -215,6 +324,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnCausalHints: s.lastTurnCausalHints,
       lastTurnActions: s.lastTurnActions,
       actionHistory: s.actionHistory,
+      activeChoiceEvent: s.activeChoiceEvent,
       lastTurnSummary: s.lastTurnSummary,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
@@ -232,6 +342,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const data = JSON.parse(raw) as LoadedSave;
       const base = createNewGame();
+      const activeChoiceEvent = sanitizeActiveChoiceEvent(data.activeChoiceEvent);
       set({
         ...base,
         ...data,
@@ -268,8 +379,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ? data.lastTurnActions.filter((action): action is string => typeof action === 'string')
           : DEFAULT_LAST_TURN_ACTIONS,
         actionHistory: sanitizeActionHistory(data.actionHistory),
+        activeChoiceEvent,
         lastTurnSummary: sanitizeLastTurnSummary(data.lastTurnSummary),
-        phase: 'playing',
+        phase: activeChoiceEvent ? 'choice' : 'playing',
       });
       return true;
     } catch {

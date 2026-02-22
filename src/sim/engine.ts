@@ -103,6 +103,7 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
     lastTurnCausalHints: [],
     lastTurnActions: [],
     actionHistory: [],
+    activeChoiceEvent: null,
     lastTurnSummary: {
       turn: 0,
       deltas: {
@@ -341,6 +342,7 @@ export function advanceTurn(state: GameState): GameState {
   const turnActionHistory: ActionHistoryEntry[] = [];
   const next = structuredClone(state);
   next.outcome = 'ongoing';
+  next.activeChoiceEvent = null;
   next.worldFlags = decayWorldFlags(next.worldFlags);
 
   // 1. Apply queued decisions
