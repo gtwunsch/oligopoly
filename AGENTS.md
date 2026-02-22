@@ -105,6 +105,8 @@ For Democracy-4-style UX consistency:
 - Show causality in **two moments**: decision **Preview** (before end turn) and **Resolved** (after turn).
 - Keep turn summaries scannable in ~5 seconds: headline KPIs + top country deltas + 1 short causal hint per delta.
 - If explicit causal edges are missing in state, use a **UI fallback** from existing hints/deltas; do not block shipping.
+- Keep onboarding invisible and short: default scenario only, 3 turns max, tooltip-level copy, always dismissible.
+- If adding optional objectives, keep one active at a time, fixed 2–4 turn window, and small rewards only.
 
 ### Gate C — Fun & Choice
 - Every decision must present a visible benefit **and** a visible cost or risk.

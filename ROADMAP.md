@@ -23,6 +23,7 @@ The player is never just "clicking buttons." Every action has a visible chain of
 - Loss states are dramatic and clear (bank run, sovereign default you caused, political scandal)
 - Core interconnected system works: trades → country indicators → events → feedback
 - Zero tutorial needed — UI teaches through tooltips and causal arrows
+- Early-game guidance is invisible: 3-turn optional onboarding + one small optional quarter objective
 
 ### Features (priority order)
 
