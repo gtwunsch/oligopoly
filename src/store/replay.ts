@@ -1,4 +1,11 @@
-import { advanceTurn, createNewGame, decisions, scenarios } from '../sim';
+import {
+  applyChoiceEvent,
+  advanceTurn,
+  createNewGame,
+  decisions,
+  pickChoiceEventForTurn,
+  scenarios,
+} from '../sim';
 import type { GameState } from '../sim/types';
 
 const REPLAY_VERSION = 1 as const;
@@ -8,6 +15,7 @@ type ReplayScenarioId = NonNullable<Parameters<typeof createNewGame>[1]>;
 
 export interface ReplayTurnInput {
   actions: string[];
+  choice?: 'A' | 'B';
 }
 
 export interface ReplayPayload {
@@ -67,17 +75,34 @@ function sanitizeScenarioId(value: unknown): ReplayScenarioId | undefined {
   return SCENARIO_IDS.has(value as ReplayScenarioId) ? (value as ReplayScenarioId) : undefined;
 }
 
-export function sanitizeReplayTurns(turns: unknown): string[][] {
-  if (!Array.isArray(turns)) return [];
-  return turns.map((turn) => sanitizeActions(turn));
+function sanitizeReplayTurn(turn: unknown): ReplayTurnInput {
+  if (Array.isArray(turn)) {
+    return { actions: sanitizeActions(turn) };
+  }
+  if (!isRecord(turn)) {
+    return { actions: [] };
+  }
+  const choice = turn.choice === 'A' || turn.choice === 'B' ? turn.choice : undefined;
+  return {
+    actions: sanitizeActions(turn.actions),
+    ...(choice ? { choice } : {}),
+  };
 }
 
-export function buildReplayPayload(seed: number, scenarioId: string, turnHistory: string[][]): ReplayPayload {
+export function sanitizeReplayTurns(turns: unknown): ReplayTurnInput[] {
+  if (!Array.isArray(turns)) return [];
+  return turns.map((turn) => sanitizeReplayTurn(turn));
+}
+
+export function buildReplayPayload(seed: number, scenarioId: string, turnHistory: ReplayTurnInput[]): ReplayPayload {
   return {
     version: REPLAY_VERSION,
     seed,
     scenarioId: sanitizeScenarioId(scenarioId),
-    turns: turnHistory.map((actions) => ({ actions: [...actions] })),
+    turns: turnHistory.map((turn) => ({
+      actions: [...turn.actions],
+      ...(turn.choice ? { choice: turn.choice } : {}),
+    })),
   };
 }
 
@@ -112,9 +137,7 @@ export function parseReplayPayload(rawPayload: string): ReplayPayload {
     version: REPLAY_VERSION,
     seed,
     scenarioId: sanitizeScenarioId(parsed.scenarioId),
-    turns: turns.map((turn) => ({
-      actions: isRecord(turn) ? sanitizeActions(turn.actions) : [],
-    })),
+    turns: turns.map((turn) => sanitizeReplayTurn(turn)),
   };
 }
 
@@ -125,10 +148,32 @@ export function runReplay(payload: ReplayPayload): GameState {
     if (state.phase !== 'playing') {
       break;
     }
-    state = advanceTurn({
+    const snapshot: GameState = {
       ...state,
+      activeChoiceEvent: null,
+      phase: 'playing',
       pendingDecisions: [...turnInput.actions],
-    });
+    };
+    const choiceEvent = pickChoiceEventForTurn(snapshot);
+    if (choiceEvent) {
+      const choice = turnInput.choice ?? 'A';
+      const withChoice = applyChoiceEvent(
+        {
+          ...snapshot,
+          activeChoiceEvent: choiceEvent,
+          phase: 'choice',
+        },
+        choiceEvent.id,
+        choice,
+      );
+      state = advanceTurn({
+        ...withChoice,
+        activeChoiceEvent: null,
+        phase: 'playing',
+      });
+      continue;
+    }
+    state = advanceTurn(snapshot);
   }
 
   return state;

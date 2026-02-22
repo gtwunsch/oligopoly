@@ -11,11 +11,11 @@ import {
 describe('replay tooling', () => {
   it('replays the same payload to the same summarized state', () => {
     const payload = buildReplayPayload(20260222, 'calm_markets', [
-      ['buy_sovereign_bonds'],
-      ['buy_equities'],
-      ['buy_gold', 'reduce_leverage'],
-      [],
-      ['raise_leverage'],
+      { actions: ['buy_sovereign_bonds'] },
+      { actions: ['buy_equities'] },
+      { actions: ['buy_gold', 'reduce_leverage'] },
+      { actions: [] },
+      { actions: ['raise_leverage'], choice: 'A' },
     ]);
     const serialized = JSON.stringify(payload);
     const parsed = parseReplayPayload(serialized);

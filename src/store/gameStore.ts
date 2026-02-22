@@ -14,6 +14,7 @@ import {
 import {
   buildReplayPayload,
   parseReplayPayload,
+  type ReplayTurnInput,
   sanitizeReplayTurns,
   verifyReplayDeterminism,
 } from './replay';
@@ -77,7 +78,7 @@ interface UiState {
 
 interface ReplayState {
   replayBaseSeed: number;
-  replayTurns: string[][];
+  replayTurns: ReplayTurnInput[];
 }
 
 interface ObjectiveEvaluationResult {
@@ -322,7 +323,7 @@ type LegacyPortfolio = Partial<Portfolio> & { cash?: number };
 interface PersistedGameState extends GameState {
   saveVersion: number;
   replayBaseSeed?: number;
-  replayTurns?: string[][];
+  replayTurns?: ReplayTurnInput[];
 }
 type LoadedSave = Partial<GameState> & {
   saveVersion?: number;
@@ -523,7 +524,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       objectivesDismissed: state.objectivesDismissed,
       onboardingDismissed: state.onboardingDismissed,
       replayBaseSeed: state.replayBaseSeed,
-      replayTurns: [...state.replayTurns, executedTurnActions],
+      replayTurns: [...state.replayTurns, { actions: executedTurnActions }],
     });
   },
 
@@ -606,7 +607,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       objectivesDismissed: state.objectivesDismissed,
       onboardingDismissed: state.onboardingDismissed,
       replayBaseSeed: state.replayBaseSeed,
-      replayTurns: [...state.replayTurns, executedTurnActions],
+      replayTurns: [...state.replayTurns, { actions: executedTurnActions, choice }],
     });
   },
 
@@ -774,7 +775,10 @@ export const useGameStore = create<GameStore>((set, get) => {
         objectivesDismissed: false,
         onboardingDismissed: true,
         replayBaseSeed: payload.seed,
-        replayTurns: payload.turns.map((turn) => [...turn.actions]),
+        replayTurns: payload.turns.map((turn) => ({
+          actions: [...turn.actions],
+          ...(turn.choice ? { choice: turn.choice } : {}),
+        })),
       });
 
       return {
@@ -797,7 +801,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     const mostRecentActions =
       state.lastTurnActions.length > 0
         ? state.lastTurnActions
-        : state.replayTurns[state.replayTurns.length - 1] ?? [];
+        : state.replayTurns[state.replayTurns.length - 1]?.actions ?? [];
     const lastEventEntry = [...state.log].reverse().find((entry) => entry.type === 'event');
     const lastEventHeadline = lastEventEntry ? lastEventEntry.text.split(':')[0] : undefined;
 
