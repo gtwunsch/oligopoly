@@ -124,7 +124,7 @@ Target: ~40 edges across 8 countries. Still computable in <1ms per tick.
 - **Extract simulation engine.** The `resolve()` function is getting complex. Split into: `applyTrades()`, `tickIndicators()`, `evaluateEvents()`, `updateMeters()`. Each is a pure function, independently testable.
 - **Event DSL.** Events should be authorable in a simple JSON/YAML format with conditions like `{ "country.debtGdp": { "gt": 0.85 }, "player.holds": "bonds:rivara" }`. This unblocks non-engineers writing events.
 - **Replay system.** Record all player inputs per turn. Replay = run the same seed + inputs through `resolve()`. Essential for bug reports and balancing.
-- **Consider TypeScript** if not already using it. The state shape is getting complex enough that types prevent real bugs.
+- **TypeScript is already in use** (good). Tighten the types: replace `Partial<GameState>` returns in event/decision effects with a narrower `StatePatch` type that only allows `countries` and `portfolio` fields. This prevents accidental overwrites of `turn`, `seed`, etc.
 
 ### Fun Checks
 
@@ -207,17 +207,184 @@ Target: ~80 edges, 12 countries, 3 AI banks. May need to batch-compute between t
 
 ---
 
-## Technical Stack Recommendation
+## Boilerplate Audit & Next Steps Mapping
 
-| Layer | MVP | v1 | v2 |
-|-------|-----|----|----|
-| **Runtime** | Browser (SPA) | Browser (SPA) | Browser + optional Electron |
+> This section evaluates the boilerplate (PR #1, branch `cursor/global-investment-simulator-5ce5`) against the roadmap and maps the suggested "next improvements" to the correct phase.
+
+### What the boilerplate covers
+
+The boilerplate is a functional React + TypeScript + Vite SPA using Zustand for state. It delivers:
+
+- **5 real-world countries** (US, EU, China, Brazil, Japan) with 8 indicators each
+- **10 trade decisions** (buy bonds × 2, buy equities × 2, short CNY, buy gold, leverage up/down, rate swap, liquidate all)
+- **Simulation engine** (`advanceTurn` pure function) with per-country `tickCountry` macro model, PnL calculation, and risk/liquidity scoring
+- **10 events** with conditional triggers and weighted random selection
+- **Seeded RNG** (Mulberry32) for reproducible playthroughs
+- **UI components**: KPI bar, country cards, decisions panel, portfolio charts (recharts), risk meter, event log, turn summary modal, start screen
+- **Save/load** to localStorage (roadmap had this in v1, fine to keep)
+- **Basic score** system
+
+This is a solid MVP skeleton. The core turn loop works. However, several roadmap-critical MVP features are missing.
+
+### MVP gaps to close before moving to "next improvements"
+
+These are features the roadmap marks as essential to MVP that the boilerplate does not implement. **These should be addressed first**, before any of the suggested next improvements.
+
+| Gap | Roadmap ref | Priority | Why it matters |
+|-----|-------------|----------|----------------|
+| **Reputation meter** | MVP #3 | **P0** | The roadmap defines 2 player meters: Reputation + Risk. The boilerplate only has Risk + Liquidity. Without Reputation, there's no political/media feedback loop, and the "Lobby/PR" decision has no purpose. Reputation hitting 0 is a game-over condition. |
+| **Causal chain display** | MVP #4 | **P0** | The single most important UX element per the roadmap. Without visible `Rates ↑ → FX ↑ → Exports ↓` chains, the interconnected system feels like a black box. This is what separates the game from a spreadsheet. |
+| **Lobby/PR + Provide Liquidity decisions** | MVP #2 | **P1** | The roadmap specifies these as 2 of the 10 core decisions. The boilerplate replaces them with a second bond buy and a "liquidate all" button. Lobby/PR interacts with Reputation; Provide Liquidity interacts with country stability. Both are needed for meaningful tradeoffs. |
+| **Personalized event text** | MVP #5 | **P1** | Events should reference player actions: "Your bond sell-off contributed to Brazil's credit downgrade." Current events are generic wire-service headlines. This is how the game creates "I caused that" moments. |
+| **Win condition** | MVP #7 | **P1** | Only a loss condition exists (AUM < $20B). The roadmap specifies: survive 20 turns with portfolio above target. Without a win state, there's no goal to play toward. |
+| **Sell Sovereign Bonds decision** | MVP #2 | **P2** | You can buy bonds but can't sell them (only "liquidate all"). Selling bonds in a fragile country should destabilize it — a core moral-tension mechanic. |
+
+### Design note: real vs. fictional countries
+
+The boilerplate uses real countries (US, Eurozone, China, Brazil, Japan). The roadmap specifies fictional ones (Columnis, Rivara, Petralund, Kaelmont, Dharvia). **Recommendation: keep real countries.** They provide instant recognition, make events feel grounded, and reduce onboarding friction. The fictional names were a hedge against political sensitivity, but neutral event writing solves that better than renaming.
+
+---
+
+### Mapping: suggested "next improvements" → roadmap phases
+
+Each suggested improvement is evaluated for: which phase it belongs in, its priority within that phase, dependencies, and any caveats.
+
+#### 1. More countries and regional cross-country dynamics
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | Countries → **v1** (feature #2). Cross-country dynamics → **v1** (interconnection model + feature #5). |
+| **Priority in phase** | High. More countries are the easiest way to add replayability. Cross-country edges create contagion — the most exciting emergent mechanic. |
+| **Dependencies** | The interconnection model needs upgrading first. Currently `tickCountry` runs each country independently with zero cross-country edges. Before adding countries, add a `crossCountryEffects()` step to `advanceTurn` that propagates shocks (e.g., Brazil crisis → China export hit). |
+| **Caveat** | Don't add countries without cross-country edges. 8 independent countries isn't more interesting than 5 — it's just more cards to scan. The edges are the point. |
+| **Scope** | v1: add 3 countries (India, Nigeria, Saudi Arabia or similar archetypes), ~25 cross-country edges. v2: expand to 12 + trade blocs. |
+
+#### 2. Policy decisions (lobby central banks, capital controls)
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | Lobby/PR → **MVP** (it's a gap — see above). Capital controls, central bank lobbying → **v1** (feature #3, expanded trade menu). |
+| **Priority in phase** | Lobby/PR is P1 for MVP. Capital controls are mid-priority for v1. |
+| **Dependencies** | Lobby/PR requires the Reputation meter (also an MVP gap). Capital controls require cross-country dynamics to be meaningful. |
+| **Caveat** | "Lobby central bank" is essentially "pay money to influence a country's rate decision." This is powerful and fun, but it needs to feel like a real tradeoff — expensive, reputation-damaging if discovered, and only partially effective. Don't make it a guaranteed rate override. |
+| **Scope** | MVP: add Lobby/PR decision (costs capital, reduces reputation penalties). v1: add Capital Controls (restrict FX flows for a country — stabilizes their currency but hurts their growth and your trade access). |
+
+#### 3. Multi-turn event chains and crises
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | **v1** (feature #1 — dynamic event system). |
+| **Priority in phase** | **Highest in v1.** This is the #1 feature. Chain reactions are what make the game feel like a living system instead of a random-event generator. |
+| **Dependencies** | Requires the event DSL upgrade (v1 tech debt). Current events are JS functions with inline logic — they need to become data-driven with preconditions so chains can be authored declaratively. |
+| **Caveat** | Start with 2–3 hand-authored chains, not a general chain engine. Example: "EM Currency Pressure" (turn N) → "Capital Flight" (turn N+1, if stability drops) → "IMF Intervention" (turn N+2, if debt > threshold). Prove the concept before building the system. |
+| **Scope** | v1: ~5 scripted multi-turn chains, event pool grows to ~50. v2: chains can interact with each other, creating compound crises. |
+
+#### 4. Achievements and scoring leaderboard
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | Basic scoring → **already exists** in boilerplate. Achievements → **v2** (feature #8, persistent statistics). Leaderboard → **v2** (requires backend). |
+| **Priority in phase** | **Low for v1, medium for v2.** Achievements without persistence feel hollow. A leaderboard without enough players is an empty room. |
+| **Dependencies** | Persistent stats require either localStorage (limited) or a backend (v2). Achievements need enough game variety that they're not all unlocked in 3 playthroughs. |
+| **Caveat** | **Do not build this before v2.** It's a retention mechanic, not an engagement mechanic. If the core loop isn't fun, achievements won't save it. The boilerplate's simple score is sufficient through v1. Consider adding 3–5 "soft achievements" (displayed on the debrief screen, not persisted) in late v1 as a low-cost experiment. |
+| **Scope** | Late v1: 5 debrief-only achievements ("Survived 20 turns without leverage", "Caused a sovereign default"). v2: full persistent achievement system + leaderboard. |
+
+#### 5. Sound effects and turn animations
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | Basic sound → **v1** (feature #10). Full polish → **v2** (feature #10). |
+| **Priority in phase** | **Lowest in v1.** Listed as #10 for a reason. Audio is atmosphere, not mechanics. |
+| **Dependencies** | None technically. But doing this before the core loop is tight is wasted effort — you'll redesign the UX and throw away animation work. |
+| **Caveat** | **Do not touch this until v1 features #1–#8 are done.** One exception: a single "event chime" sound when a crisis fires is cheap and high-impact. Budget 1 day max in late v1. |
+| **Scope** | v1: 3–4 sound effects (event chime, turn advance, crisis alarm, game over). v2: ambient soundtrack, dynamic tension music, polished transitions. |
+
+#### 6. Detailed country drill-down view
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | **v1** (not explicitly listed but fits between features #5 and #6). |
+| **Priority in phase** | **Medium.** The current country cards show 8 stats in a compact grid — functional but dense. A drill-down with historical charts (rate/growth/stability over time) would deepen understanding. |
+| **Dependencies** | Requires storing country indicator history (currently only `fxPrevious` is tracked). Add a `history: { turn, rate, growth, ... }[]` array to `CountryState`. |
+| **Caveat** | Keep the drill-down to one screen: 3–4 sparkline charts + current stats + player exposure to that country. Don't build a full economic dashboard — the game is about decisions, not analysis. |
+| **Scope** | v1: click a country card → modal with 4 sparkline charts (rate, growth, stability, equity index) + your portfolio exposure to that country. v2: add trade flow visualization to/from other countries. |
+
+#### 7. Sector-level equity investing
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | **v2 at earliest. Possibly never.** |
+| **Priority in phase** | **Low.** |
+| **Dependencies** | Requires a sector model per country (tech, energy, finance, etc.), each with its own indicators. This multiplies the state space significantly. |
+| **Caveat** | **This is a complexity trap.** The roadmap explicitly warns: "if we want more variety, add modifiers to existing trades instead of new trade types." Sectors add a layer of analysis that doesn't deepen the core "your trades affect countries" loop — it widens it into stock-picking, which is a different game. If sector exposure matters, model it as a modifier on the existing equity trade ("Buy Equities — Tech-Heavy" vs. "Buy Equities — Diversified") rather than a separate system. |
+| **Scope** | v2 stretch goal: 2–3 sector modifiers on the existing equity trade. Not a standalone system. |
+
+#### 8. Trade relationships between countries
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | **v1** (feature #5 — country relationship web). |
+| **Priority in phase** | **High.** This is the visible manifestation of cross-country dynamics (#1 above). Without it, contagion is invisible. |
+| **Dependencies** | Cross-country edges in the simulation model (see #1). The visualization is a separate UI concern. |
+| **Caveat** | The visualization and the mechanics are **two separate tasks**. Build the mechanics first (cross-country edges in the sim), then build the node-graph visualization. Don't couple them. |
+| **Scope** | v1: implement cross-country edges in `advanceTurn` + a dedicated "World Map" screen showing countries as nodes with trade-flow edges and contagion risk indicators. v2: animated contagion ripple visualization. |
+
+#### 9. Difficulty levels and historical scenarios
+
+| Attribute | Value |
+|-----------|-------|
+| **Phase** | Scenarios → **v1** (feature #7). Difficulty levels → **v2** (feature #9). |
+| **Priority in phase** | Scenarios are medium in v1. Difficulty is medium in v2. |
+| **Dependencies** | Scenarios require the game to be parameterizable — different starting country states and event pools per scenario. The current `createNewGame()` hardcodes `initialCountries`, so it needs a `scenarioConfig` parameter. Difficulty needs enough playtesting data to know what "hard" means. |
+| **Caveat** | **Historical scenarios are v2, not v1.** "Asian Financial Crisis 1997" or "2008 GFC" require careful calibration of starting conditions, event sequences, and win/loss thresholds. Get the fictional/generalized scenarios working in v1 first. The v1 scenarios should be archetypal situations ("Calm Markets", "Emerging Crisis", "Rate Shock"), not historical recreations. |
+| **Scope** | v1: 3 preset scenarios with different starting conditions. v2: 3 historical scenarios + Easy/Normal/Hard + gameplay modifiers ("Glass-Steagall", "Infinite Leverage", etc.). |
+
+---
+
+### Recommended implementation order
+
+Given the current boilerplate state, here's the sequenced backlog combining MVP gap fixes and the suggested next improvements:
+
+**Immediate (finish MVP — week 1–2):**
+
+1. Add Reputation meter + game-over at 0
+2. Add causal chain HUD display
+3. Replace "Liquidate All" with Sell Bonds; add Lobby/PR and Provide Liquidity decisions
+4. Add personalized event text referencing player actions
+5. Add win condition (survive N turns above AUM target)
+
+**Next (v1 — month 1–2):**
+
+6. Cross-country edges in simulation engine (trade relationships between countries — item #8)
+7. Multi-turn event chains and crises (item #3)
+8. 3 more countries with cross-country dynamics (item #1)
+9. Policy decisions: capital controls, central bank lobbying (item #2)
+10. Country drill-down view with history charts (item #6)
+11. Scenario selector with 3 presets (first half of item #9)
+12. End-game debrief with decision timeline
+13. Country relationship web visualization (item #8 UI layer)
+14. Sound effects — minimal set (item #5)
+
+**Later (v2 — month 3–6):**
+
+15. Difficulty levels + historical scenarios (second half of item #9)
+16. Achievements + persistent statistics (item #4)
+17. Scoring leaderboard (item #4)
+18. Sector-level equity modifiers (item #7, if at all)
+
+---
+
+## Technical Stack (actual, from boilerplate)
+
+| Layer | MVP (current) | v1 | v2 |
+|-------|---------------|----|----|
+| **Runtime** | Browser (Vite SPA) | Same | Browser + optional Electron |
 | **Language** | TypeScript | TypeScript | TypeScript |
-| **Framework** | Vanilla DOM or lightweight (Preact/Svelte) | Same | Same + canvas for viz |
-| **State** | In-memory, seeded RNG | + localStorage save | + backend persistence |
-| **Data** | Static JSON | JSON + event DSL | + scenario editor |
-| **Backend** | None | None | Firebase/Supabase (minimal) |
-| **Testing** | Unit tests on `resolve()` | + replay-based integration | + automated balance sims |
+| **Framework** | React 19 + Recharts | Same | Same + canvas for relationship graph |
+| **State** | Zustand + seeded RNG (Mulberry32) | Same + event DSL | Same |
+| **Persistence** | localStorage (already implemented) | Same | + Firebase/Supabase backend |
+| **Data** | Hardcoded TS objects | JSON/YAML event DSL | + scenario editor |
+| **Testing** | None yet — add unit tests on `advanceTurn()` | + replay-based integration | + automated balance sims |
 
 ---
 
