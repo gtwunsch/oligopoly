@@ -47,6 +47,8 @@ export interface Decision {
   cost: number;             // $B cost to execute
   tags: string[];
   unlockTurn?: number;
+  reputationDelta?: number;
+  causalHint?: string;
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -56,6 +58,13 @@ export interface GameEvent {
   description: string;
   weight: number;           // relative probability
   trigger?: (state: GameState) => boolean;
+  reputationDelta?: number;
+  causalHint?: string;
+  attributionRules?: {
+    decisionId?: string;
+    decisionTag?: string;
+    text: string;
+  }[];
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -69,8 +78,18 @@ export interface GameState {
   turn: number;
   year: number;
   quarter: number;          // 1-4
+  scenarioId: string;
+  scenarioName: string;
   countries: CountryState[];
+  eventWeightBias: Record<string, number>;
+  worldFlags: Record<string, number>;
   portfolio: Portfolio;
+  reputation: number;       // 0-100
+  winTargetAum: number;
+  maxTurns: number;
+  outcome: 'ongoing' | 'win' | 'loss';
+  lastTurnCausalHints: string[];
+  lastTurnActions: string[];
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
   phase: 'start' | 'playing' | 'summary' | 'gameover';

@@ -1,9 +1,10 @@
-import type { GameState, CountryState, LogEntry, Portfolio } from './types';
+import type { CountryState, Decision, GameEvent, GameState, LogEntry, Portfolio } from './types';
 import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
 import { initialCountries } from './countries';
 import { decisions } from './decisions';
+import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
 
 // ── Helpers ──
 
@@ -11,13 +12,18 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 // ── New game factory ──
 
-export function createNewGame(seed?: number): GameState {
+export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): GameState {
   const s = seed ?? Date.now();
+  const scenario = getScenarioById(scenarioId);
   return {
     turn: 0,
     year: 2025,
     quarter: 1,
-    countries: structuredClone(initialCountries),
+    scenarioId: scenario.id,
+    scenarioName: scenario.name,
+    countries: applyScenarioCountries(structuredClone(initialCountries), scenario),
+    eventWeightBias: { ...scenario.eventWeightBias },
+    worldFlags: {},
     portfolio: {
       aum: 100,
       cash: 100,
@@ -27,6 +33,12 @@ export function createNewGame(seed?: number): GameState {
       riskScore: 0,
       liquidity: 100,
     },
+    reputation: scenario.startingReputation ?? 70,
+    winTargetAum: 120,
+    maxTurns: 20,
+    outcome: 'ongoing',
+    lastTurnCausalHints: [],
+    lastTurnActions: [],
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
     phase: 'playing',
@@ -178,12 +190,60 @@ function computeLiquidity(portfolio: Portfolio): number {
   return clamp(Math.round(cashRatio * 100 + (1 / portfolio.leverage) * 20), 0, 100);
 }
 
+function decayWorldFlags(flags: Record<string, number>): Record<string, number> {
+  const nextFlags: Record<string, number> = {};
+  for (const [key, value] of Object.entries(flags)) {
+    const nextValue = Math.max(0, Math.floor(value) - 1);
+    if (nextValue > 0) nextFlags[key] = nextValue;
+  }
+  return nextFlags;
+}
+
+function mergeWorldFlags(
+  currentFlags: Record<string, number>,
+  patchFlags: Record<string, number>,
+): Record<string, number> {
+  const merged = { ...currentFlags };
+  for (const [key, value] of Object.entries(patchFlags)) {
+    const normalized = Math.floor(value);
+    if (normalized > 0) {
+      merged[key] = normalized;
+    } else {
+      delete merged[key];
+    }
+  }
+  return merged;
+}
+
+function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
+  if (!event.attributionRules || executedDecisions.length === 0) {
+    return null;
+  }
+
+  for (const rule of event.attributionRules) {
+    if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
+      return rule.text;
+    }
+    if (rule.decisionTag) {
+      const tag = rule.decisionTag;
+      if (executedDecisions.some((decision) => decision.tags.includes(tag))) {
+        return rule.text;
+      }
+    }
+  }
+  return null;
+}
+
 // ── Main tick ──
 
 export function advanceTurn(state: GameState): GameState {
   const rng = createRng(state.seed + state.turn * 7919);
   const newLog: LogEntry[] = [];
+  const turnCausalHints: string[] = [];
+  const executedDecisions: Decision[] = [];
   let next = structuredClone(state);
+  next.outcome = 'ongoing';
+  next.worldFlags = decayWorldFlags(next.worldFlags);
 
   // 1. Apply queued decisions
   for (const dId of next.pendingDecisions) {
@@ -193,6 +253,19 @@ export function advanceTurn(state: GameState): GameState {
     Object.assign(next, patch);
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
     if (patch.countries) next.countries = patch.countries;
+    if (typeof patch.reputation === 'number') {
+      next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (patch.worldFlags) {
+      next.worldFlags = mergeWorldFlags(next.worldFlags, patch.worldFlags);
+    }
+    if (dec.reputationDelta) {
+      next.reputation = clamp(next.reputation + dec.reputationDelta, 0, 100);
+    }
+    if (dec.causalHint) {
+      turnCausalHints.push(dec.causalHint);
+    }
+    executedDecisions.push(dec);
     newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
   }
   next.pendingDecisions = [];
@@ -203,13 +276,35 @@ export function advanceTurn(state: GameState): GameState {
 
   // 3. Fire 1-2 random events
   const numEvents = rng.next() > 0.5 ? 2 : 1;
-  const eligible = events.filter((e) => !e.trigger || e.trigger(next));
+  const eligible = events
+    .filter((e) => !e.trigger || e.trigger(next))
+    .map((event) => ({
+      ...event,
+      weight: event.weight * (next.eventWeightBias[event.id] ?? 1),
+    }))
+    .filter((event) => event.weight > 0);
   for (let i = 0; i < numEvents && eligible.length > 0; i++) {
     const ev = rng.weightedPick(eligible);
+    const pickedIndex = eligible.findIndex((candidate) => candidate.id === ev.id);
+    if (pickedIndex >= 0) eligible.splice(pickedIndex, 1);
     const patch = ev.effect(next);
     if (patch.countries) next.countries = patch.countries;
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
-    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${ev.description}`, type: 'event' });
+    if (typeof patch.reputation === 'number') {
+      next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (patch.worldFlags) {
+      next.worldFlags = mergeWorldFlags(next.worldFlags, patch.worldFlags);
+    }
+    if (ev.reputationDelta) {
+      next.reputation = clamp(next.reputation + ev.reputationDelta, 0, 100);
+    }
+    if (ev.causalHint) {
+      turnCausalHints.push(ev.causalHint);
+    }
+    const attribution = buildAttributionText(ev, executedDecisions);
+    const description = attribution ? `${ev.description} ${attribution}` : ev.description;
+    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
   }
 
   // 4. PnL
@@ -229,6 +324,27 @@ export function advanceTurn(state: GameState): GameState {
   next.portfolio.riskScore = computeRisk(next.portfolio, next.countries);
   next.portfolio.liquidity = computeLiquidity(next.portfolio);
 
+  // 5b. Reputation drifts based on portfolio risk and world stability.
+  const avgStability = next.countries.reduce((s, c) => s + c.stability, 0) / next.countries.length;
+  let reputationDelta = 0;
+  if (next.portfolio.riskScore > 70) reputationDelta -= 2;
+  if (avgStability < 55) reputationDelta -= 1;
+  if (next.portfolio.riskScore < 35 && avgStability > 75) reputationDelta += 1;
+  if (reputationDelta !== 0) {
+    next.reputation = clamp(next.reputation + reputationDelta, 0, 100);
+    turnCausalHints.push(
+      reputationDelta > 0
+        ? 'Risk down + stability up -> media pressure eases -> reputation recovers'
+        : 'Risk up or instability -> scrutiny rises -> reputation falls',
+    );
+    const repSign = reputationDelta > 0 ? '+' : '';
+    newLog.push({
+      turn: next.turn + 1,
+      text: `Reputation ${repSign}${reputationDelta} (${next.reputation}/100)`,
+      type: 'market',
+    });
+  }
+
   // 6. Advance clock
   next.turn += 1;
   next.quarter = ((next.quarter) % 4) + 1;
@@ -239,15 +355,44 @@ export function advanceTurn(state: GameState): GameState {
   next.score = Math.round(
     (next.portfolio.aum - 100) * 10 +
     next.turn * 2 +
-    (100 - next.portfolio.riskScore) * 0.5,
+    (100 - next.portfolio.riskScore) * 0.5 +
+    next.reputation * 0.25,
   );
 
   // 8. Game over check
-  if (next.portfolio.aum < 20) {
+  if (next.reputation <= 0) {
+    newLog.push({ turn: next.turn, text: 'Reputation collapsed. Regulators have seized the bank.', type: 'info' });
+    next.phase = 'gameover';
+    next.outcome = 'loss';
+  } else if (next.portfolio.riskScore >= 100) {
+    newLog.push({ turn: next.turn, text: 'Risk hit 100. Your bank has collapsed under stress.', type: 'info' });
+    next.phase = 'gameover';
+    next.outcome = 'loss';
+  } else if (next.portfolio.aum < 20) {
     newLog.push({ turn: next.turn, text: 'AUM below $20B. The board has lost confidence.', type: 'info' });
+    next.phase = 'gameover';
+    next.outcome = 'loss';
+  } else if (next.turn >= next.maxTurns) {
+    if (next.portfolio.aum >= next.winTargetAum) {
+      newLog.push({
+        turn: next.turn,
+        text: `You reached Turn ${next.maxTurns} above the $${next.winTargetAum}B target. The board renews your mandate.`,
+        type: 'info',
+      });
+      next.outcome = 'win';
+    } else {
+      newLog.push({
+        turn: next.turn,
+        text: `You survived ${next.maxTurns} turns but missed the $${next.winTargetAum}B target.`,
+        type: 'info',
+      });
+      next.outcome = 'loss';
+    }
     next.phase = 'gameover';
   }
 
+  next.lastTurnCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
+  next.lastTurnActions = executedDecisions.map((decision) => decision.id);
   next.log = [...next.log, ...newLog];
   return next;
 }
