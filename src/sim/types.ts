@@ -48,6 +48,7 @@ export interface Decision {
   tags: string[];
   unlockTurn?: number;
   reputationDelta?: number;
+  causalHint?: string;
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -58,6 +59,7 @@ export interface GameEvent {
   weight: number;           // relative probability
   trigger?: (state: GameState) => boolean;
   reputationDelta?: number;
+  causalHint?: string;
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -74,6 +76,7 @@ export interface GameState {
   countries: CountryState[];
   portfolio: Portfolio;
   reputation: number;       // 0-100
+  lastTurnCausalHints: string[];
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
   phase: 'start' | 'playing' | 'summary' | 'gameover';

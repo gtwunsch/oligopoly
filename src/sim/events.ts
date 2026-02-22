@@ -19,6 +19,7 @@ export const events: GameEvent[] = [
     description: 'The Federal Reserve raises rates by 25bp.',
     weight: 3,
     reputationDelta: -1,
+    causalHint: 'US inflation up -> Fed hikes rates -> global risk appetite softens',
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation > 3,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -34,6 +35,7 @@ export const events: GameEvent[] = [
     description: 'The Federal Reserve cuts rates by 25bp.',
     weight: 2,
     reputationDelta: 1,
+    causalHint: 'US inflation cools -> Fed cuts rates -> sentiment improves',
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation < 2,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -49,6 +51,7 @@ export const events: GameEvent[] = [
     description: 'Beijing announces fiscal stimulus. Growth outlook improves.',
     weight: 2,
     reputationDelta: 1,
+    causalHint: 'Policy stimulus -> growth expectations rise -> sentiment improves',
     effect: (s) => {
       const cn = s.countries.find((c) => c.id === 'cn')!;
       return updateCountry(s, 'cn', {
@@ -64,6 +67,7 @@ export const events: GameEvent[] = [
     description: 'Emerging market currencies plunge. Contagion fears rise.',
     weight: 1,
     reputationDelta: -4,
+    causalHint: 'Stability down -> currency selloff deepens -> contagion fears rise',
     trigger: (s) => s.countries.find((c) => c.id === 'br')!.stability < 50,
     effect: (s) => {
       const br = s.countries.find((c) => c.id === 'br')!;
@@ -80,6 +84,7 @@ export const events: GameEvent[] = [
     description: 'Geopolitical tensions push oil prices up. Inflation risk.',
     weight: 2,
     reputationDelta: -2,
+    causalHint: 'Oil shock -> inflation pressure rises -> policy risk increases',
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -94,6 +99,7 @@ export const events: GameEvent[] = [
     description: 'AI optimism fuels a tech-led equity rally.',
     weight: 2,
     reputationDelta: 1,
+    causalHint: 'Risk appetite up -> equities rally -> portfolio beta pays',
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -108,6 +114,7 @@ export const events: GameEvent[] = [
     description: 'PMI data signals contraction in the Eurozone.',
     weight: 1,
     reputationDelta: -2,
+    causalHint: 'Growth warning -> sentiment falls -> equities reprice lower',
     trigger: (s) => s.countries.find((c) => c.id === 'eu')!.growth < 1,
     effect: (s) => {
       const eu = s.countries.find((c) => c.id === 'eu')!;
@@ -124,6 +131,7 @@ export const events: GameEvent[] = [
     description: 'BoJ surprises markets by ending YCC. Yen surges.',
     weight: 1,
     reputationDelta: -1,
+    causalHint: 'Policy surprise -> rates jump -> FX volatility rises',
     trigger: (s) => s.countries.find((c) => c.id === 'jp')!.inflation > 2.5,
     effect: (s) => {
       const jp = s.countries.find((c) => c.id === 'jp')!;
@@ -140,6 +148,7 @@ export const events: GameEvent[] = [
     description: 'Global investors rotate into risk assets.',
     weight: 3,
     reputationDelta: 1,
+    causalHint: 'Sentiment improves -> investors buy risk -> equities grind higher',
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -154,6 +163,7 @@ export const events: GameEvent[] = [
     description: 'Investors flee to bonds and gold. Equities dip.',
     weight: 2,
     reputationDelta: -1,
+    causalHint: 'Fear rises -> risk assets sold -> equity indices weaken',
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,

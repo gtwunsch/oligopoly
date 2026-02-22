@@ -4,6 +4,7 @@ import { createNewGame, advanceTurn, decisions } from '../sim';
 
 const SAVE_KEY = 'macro-sim-save';
 const DEFAULT_REPUTATION = 70;
+const DEFAULT_CAUSAL_HINTS: string[] = [];
 
 interface GameActions {
   newGame: () => void;
@@ -65,6 +66,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       countries: state.countries,
       portfolio: state.portfolio,
       reputation: state.reputation,
+      lastTurnCausalHints: state.lastTurnCausalHints,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
       phase: state.phase,
@@ -86,6 +88,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       countries: s.countries,
       portfolio: s.portfolio,
       reputation: s.reputation,
+      lastTurnCausalHints: s.lastTurnCausalHints,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
       phase: s.phase,
@@ -104,6 +107,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ...createNewGame(),
         ...data,
         reputation: typeof data.reputation === 'number' ? data.reputation : DEFAULT_REPUTATION,
+        lastTurnCausalHints: Array.isArray(data.lastTurnCausalHints)
+          ? data.lastTurnCausalHints.filter((hint): hint is string => typeof hint === 'string')
+          : DEFAULT_CAUSAL_HINTS,
         phase: 'playing',
       });
       return true;

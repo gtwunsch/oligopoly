@@ -107,6 +107,25 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   color: var(--text-dim);
 }
 
+/* ── Causal HUD ── */
+.causal-hud {
+  margin: 0 16px 10px;
+  padding: 10px 14px;
+  background: #1a2234;
+  border: 1px solid #2a3b64;
+  border-radius: var(--radius);
+}
+.causal-list {
+  margin-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.causal-item {
+  font-size: 0.82rem;
+  color: #c9d8f0;
+}
+
 /* ── Dashboard layout ── */
 .dashboard { display: flex; flex-direction: column; min-height: 100vh; }
 .dashboard-grid {
@@ -289,6 +308,20 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .summary-pnl span:last-child, .summary-aum span:last-child { font-weight: 700; }
 .summary-events { margin: 14px 0; text-align: left; max-height: 200px; overflow-y: auto; }
 .summary-events .log-entry { padding: 4px 0; }
+.summary-causal {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.summary-causal h3 {
+  margin-bottom: 6px;
+}
+.summary-causal ul {
+  margin-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
 /* ── Recharts overrides ── */
 .recharts-cartesian-axis-tick-value { fill: var(--text-dim) !important; }

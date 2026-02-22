@@ -5,6 +5,7 @@ import { DecisionsPanel } from './DecisionsPanel';
 import { PortfolioPanel } from './PortfolioPanel';
 import { RiskMeter } from './RiskMeter';
 import { EventLog } from './EventLog';
+import { CausalChainHUD } from './CausalChainHUD';
 
 export function Dashboard() {
   const { countries, pendingDecisions, turn } = useGameStore();
@@ -23,6 +24,8 @@ export function Dashboard() {
           Watch how your choices ripple through markets.
         </div>
       )}
+
+      <CausalChainHUD />
 
       <div className="dashboard-grid">
         <section className="panel countries-section">

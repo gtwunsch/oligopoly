@@ -28,6 +28,7 @@ export function createNewGame(seed?: number): GameState {
       liquidity: 100,
     },
     reputation: 70,
+    lastTurnCausalHints: [],
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
     phase: 'playing',
@@ -184,6 +185,7 @@ function computeLiquidity(portfolio: Portfolio): number {
 export function advanceTurn(state: GameState): GameState {
   const rng = createRng(state.seed + state.turn * 7919);
   const newLog: LogEntry[] = [];
+  const turnCausalHints: string[] = [];
   let next = structuredClone(state);
 
   // 1. Apply queued decisions
@@ -199,6 +201,9 @@ export function advanceTurn(state: GameState): GameState {
     }
     if (dec.reputationDelta) {
       next.reputation = clamp(next.reputation + dec.reputationDelta, 0, 100);
+    }
+    if (dec.causalHint) {
+      turnCausalHints.push(dec.causalHint);
     }
     newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
   }
@@ -221,6 +226,9 @@ export function advanceTurn(state: GameState): GameState {
     }
     if (ev.reputationDelta) {
       next.reputation = clamp(next.reputation + ev.reputationDelta, 0, 100);
+    }
+    if (ev.causalHint) {
+      turnCausalHints.push(ev.causalHint);
     }
     newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${ev.description}`, type: 'event' });
   }
@@ -250,6 +258,11 @@ export function advanceTurn(state: GameState): GameState {
   if (next.portfolio.riskScore < 35 && avgStability > 75) reputationDelta += 1;
   if (reputationDelta !== 0) {
     next.reputation = clamp(next.reputation + reputationDelta, 0, 100);
+    turnCausalHints.push(
+      reputationDelta > 0
+        ? 'Risk down + stability up -> media pressure eases -> reputation recovers'
+        : 'Risk up or instability -> scrutiny rises -> reputation falls',
+    );
     const repSign = reputationDelta > 0 ? '+' : '';
     newLog.push({
       turn: next.turn + 1,
@@ -281,6 +294,7 @@ export function advanceTurn(state: GameState): GameState {
     next.phase = 'gameover';
   }
 
+  next.lastTurnCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
   next.log = [...next.log, ...newLog];
   return next;
 }

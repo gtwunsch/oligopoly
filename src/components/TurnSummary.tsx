@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 
 export function TurnSummary() {
-  const { log, turn, portfolio, reputation, phase } = useGameStore();
+  const { log, turn, portfolio, reputation, lastTurnCausalHints, phase } = useGameStore();
   const dismissSummary = useGameStore((s) => s.dismissSummary);
   const reset = useGameStore((s) => s.reset);
 
@@ -31,6 +31,16 @@ export function TurnSummary() {
           </span>
         </div>
         <div className="summary-events">
+          {lastTurnCausalHints.length > 0 && (
+            <div className="summary-causal">
+              <h3>Causal links</h3>
+              <ul>
+                {lastTurnCausalHints.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {turnLog.map((e, i) => (
             <div key={i} className={`log-entry log-${e.type}`}>
               {e.text}

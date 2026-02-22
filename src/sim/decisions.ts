@@ -29,6 +29,7 @@ export const decisions: Decision[] = [
     cost: 2,
     tags: ['bonds', 'us'],
     reputationDelta: 1,
+    causalHint: 'US rates down -> bond prices up -> treasury holdings gain',
     effect: (s) => addAllocation(s, 'us', 'sovereign_bonds', 0.05),
   },
   {
@@ -38,6 +39,7 @@ export const decisions: Decision[] = [
     cost: 2,
     tags: ['bonds', 'eu'],
     reputationDelta: 1,
+    causalHint: 'EU rates down -> bond prices up -> euro bond exposure gains',
     effect: (s) => addAllocation(s, 'eu', 'sovereign_bonds', 0.05),
   },
   {
@@ -47,6 +49,7 @@ export const decisions: Decision[] = [
     cost: 3,
     tags: ['equities', 'emerging'],
     reputationDelta: -1,
+    causalHint: 'EM growth up -> equities up -> returns rise with volatility',
     effect: (s) => addAllocation(s, 'br', 'equities', 0.05),
   },
   {
@@ -56,6 +59,7 @@ export const decisions: Decision[] = [
     cost: 3,
     tags: ['equities', 'asia'],
     reputationDelta: -1,
+    causalHint: 'Asia sentiment up -> equities up -> basket performance improves',
     effect: (s) => {
       const s1 = addAllocation(s, 'cn', 'equities', 0.025);
       const merged = { ...s, ...s1, portfolio: { ...s.portfolio, ...s1.portfolio } };
@@ -69,6 +73,7 @@ export const decisions: Decision[] = [
     cost: 1,
     tags: ['fx', 'china'],
     reputationDelta: -2,
+    causalHint: 'CNY weakens -> FX short pays off -> local stress risk rises',
     effect: (s) => addAllocation(s, 'cn', 'fx_short', 0.04),
   },
   {
@@ -77,6 +82,7 @@ export const decisions: Decision[] = [
     description: 'Inflation hedge, uncorrelated to equities.',
     cost: 2,
     tags: ['gold', 'hedge'],
+    causalHint: 'Inflation up -> gold demand up -> portfolio hedge improves',
     effect: (s) => addAllocation(s, 'us', 'gold', 0.05),
   },
   {
@@ -86,6 +92,7 @@ export const decisions: Decision[] = [
     cost: 0,
     tags: ['risk'],
     reputationDelta: -1,
+    causalHint: 'Leverage up -> gains and losses amplify -> bank risk rises',
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -100,6 +107,7 @@ export const decisions: Decision[] = [
     cost: 0,
     tags: ['risk'],
     reputationDelta: 1,
+    causalHint: 'Leverage down -> volatility dampens -> downside risk falls',
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -114,6 +122,7 @@ export const decisions: Decision[] = [
     cost: 1,
     tags: ['derivatives', 'us'],
     reputationDelta: -1,
+    causalHint: 'Rates fall -> swap mark-to-market rises -> derivative P&L improves',
     effect: (s) => addAllocation(s, 'us', 'irs', 0.04),
   },
   {
@@ -123,6 +132,7 @@ export const decisions: Decision[] = [
     cost: 0,
     tags: ['cash'],
     reputationDelta: 1,
+    causalHint: 'Risky positions closed -> market exposure drops -> liquidity improves',
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
