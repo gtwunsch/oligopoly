@@ -22,6 +22,9 @@ const ASSET_LABELS: Record<string, string> = {
   irs: 'IRS',
 };
 
+const ALLOCATION_CHART_HEIGHT = 110;
+const PNL_CHART_HEIGHT = 92;
+
 export function PortfolioPanel() {
   const { portfolio } = useGameStore();
 
@@ -49,7 +52,7 @@ export function PortfolioPanel() {
     <div className="portfolio-panel">
       <h3>Portfolio Allocation</h3>
       {allocData.length > 0 && (
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={ALLOCATION_CHART_HEIGHT}>
           <BarChart data={allocData} layout="vertical" margin={{ left: 10, right: 10 }}>
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
             <YAxis type="category" dataKey="name" width={60} tick={{ fontSize: 10 }} />
@@ -64,7 +67,7 @@ export function PortfolioPanel() {
       )}
 
       <h3>P&L History ($B)</h3>
-      <ResponsiveContainer width="100%" height={120}>
+      <ResponsiveContainer width="100%" height={PNL_CHART_HEIGHT}>
         <LineChart data={pnlData} margin={{ left: 0, right: 10 }}>
           <XAxis dataKey="turn" tick={{ fontSize: 10 }} />
           <YAxis tick={{ fontSize: 10 }} />
