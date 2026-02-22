@@ -166,6 +166,7 @@ Actions and events should push/pull these meters. Crossing thresholds triggers e
 - `advanceTurn` must keep reputation effects deterministic: aggressive actions (e.g. FX short, leverage up, bond selling in fragile EM) should pull down; stabilizing actions (e.g. provide liquidity, reduce leverage, buy bonds in crisis) should lift or offset penalties.
 - `GameState.actionHistory` stores recent actions as `{ turn, actionId, target?, magnitude? }` with a short rolling window (currently 5 turns) for event attribution and future UX copy.
 - `GameState.lastTurnSummary` exposes a minimal UI-ready shape: `{ turn, deltas: { reputationDelta, riskDelta, aumDelta, liquidityDelta }, why }`.
+- `SELL_BONDS` is targetable via `pendingDecisionParams[decisionId] = { targetCountry, amount }`; keep `pendingDecisions` as ID list for UI compatibility and normalize legacy `sell_sovereign_bonds` IDs when loading.
 
 ### Balance philosophy
 - Aim for *interesting* balance, not perfect balance. Asymmetry is fine if the tradeoff is clear.

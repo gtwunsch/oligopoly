@@ -21,7 +21,6 @@ import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const roundTo2 = (v: number) => Math.round(v * 100) / 100;
 const ACTION_HISTORY_TURN_WINDOW = 5;
-const BR_FRAGILE_STABILITY = 60;
 const BR_CRISIS_STABILITY = 50;
 const RECENT_ACTION_ATTRIBUTION_PREFIX = 'Recent actions set the stage:';
 
@@ -65,7 +64,6 @@ function computeActionReputationDelta(
   input?: DecisionExecutionInput,
 ): number {
   const brStability = stateBeforeDecision.countries.find((country) => country.id === 'br')?.stability ?? 100;
-  const isFragile = brStability < BR_FRAGILE_STABILITY;
   const isCrisis = brStability < BR_CRISIS_STABILITY;
 
   switch (normalizeDecisionId(decision.id)) {

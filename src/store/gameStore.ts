@@ -60,11 +60,15 @@ function sanitizePendingDecisionParams(
   }
 
   const queuedIds = new Set(queuedDecisionIds);
-  const sanitizedEntries = Object.entries(pendingDecisionParams)
-    .map(([decisionId, input]) => [normalizeDecisionId(decisionId), sanitizeDecisionInput(input)] as const)
-    .filter(([decisionId, input]) => queuedIds.has(decisionId) && input !== undefined);
-
-  return Object.fromEntries(sanitizedEntries);
+  const sanitized: GameState['pendingDecisionParams'] = {};
+  for (const [decisionId, input] of Object.entries(pendingDecisionParams)) {
+    const normalizedDecisionId = normalizeDecisionId(decisionId);
+    if (!queuedIds.has(normalizedDecisionId)) continue;
+    const normalizedInput = sanitizeDecisionInput(input);
+    if (!normalizedInput) continue;
+    sanitized[normalizedDecisionId] = normalizedInput;
+  }
+  return sanitized;
 }
 
 function sanitizeActionHistory(
