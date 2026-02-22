@@ -222,6 +222,7 @@ The boilerplate is a functional React + TypeScript + Vite SPA using Zustand for 
 - **Seeded RNG** (Mulberry32) for reproducible playthroughs
 - **UI components**: KPI bar, country cards, decisions panel, portfolio charts (recharts), risk meter, event log, turn summary modal, start screen
 - **Save/load** to localStorage (roadmap had this in v1, fine to keep)
+- **Replay tooling** (export/import replay payload + bug report snippet + determinism hash check)
 - **Basic score** system
 
 This is a solid MVP skeleton. The core turn loop works. However, several roadmap-critical MVP features are missing.
@@ -384,7 +385,7 @@ Given the current boilerplate state, here's the sequenced backlog combining MVP 
 | **State** | Zustand + seeded RNG (Mulberry32) | Same + event DSL | Same |
 | **Persistence** | localStorage (already implemented) | Same | + Firebase/Supabase backend |
 | **Data** | Hardcoded TS objects | JSON/YAML event DSL | + scenario editor |
-| **Testing** | None yet — add unit tests on `advanceTurn()` | + replay-based integration | + automated balance sims |
+| **Testing** | Sim sanity tests + replay determinism baseline (Vitest) | + replay-based integration | + automated balance sims |
 
 ---
 
