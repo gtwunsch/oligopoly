@@ -217,6 +217,9 @@ Event personalization rules (lightweight only):
 - Prefer simple templates over procedural text systems (no new DSL).
 - If referencing player agency, use only recent action context (e.g., last queued/executed action or last turn actions).
 - Keep tone neutral and concise; avoid editorial framing.
+- Choice events must be scripted A/B options with clearly opposite tradeoffs (no procedural generation).
+- Choice-event triggering/picking must stay deterministic (seed + turn driven) and use a bounded chance window when eligible.
+- Persist choice actions in history as `EVENT_CHOICE:<id>` with `choice: 'A' | 'B'`.
 
 ---
 
