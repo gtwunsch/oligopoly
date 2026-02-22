@@ -1,7 +1,8 @@
-# Global Macro – Investment Simulator
+# Oligopoly — Global Macro Investment Simulator
 
-A turn-based global macro investment simulator inspired by Democracy 4.
-You play as the CEO of the world's largest bank, making investment decisions each quarter while the simulation updates markets, countries, and sentiment.
+You run the world's most powerful bank. Your trades move markets, topple currencies, and reshape economies. Every decision ripples outward — and eventually ripples back.
+
+A turn-based strategy game about global finance, systemic risk, and the uncomfortable power of capital. Inspired by Democracy 4's interconnected systems.
 
 ## Quick Start
 
@@ -44,14 +45,6 @@ src/
 - Manage your portfolio risk and grow your AUM
 - Game over if AUM drops below $20B
 
-## Next Improvements
+## Roadmap
 
-- More countries and regional dynamics
-- Policy decisions (lobby central banks, capital controls)
-- Multi-turn event chains and crises
-- Achievements and scoring leaderboard
-- Sound effects and animations
-- Detailed country drill-down view
-- Sector-level equity investing
-- Trade relationships between countries
-- Difficulty levels and scenarios
+See [ROADMAP.md](./ROADMAP.md) for the full product roadmap covering MVP through v2, including the boilerplate audit and prioritized next steps.
