@@ -5,7 +5,7 @@ import { DEFAULT_SCENARIO_ID, scenarios } from '../sim';
 export function StartScreen() {
   const newGame = useGameStore((s) => s.newGame);
   const load = useGameStore((s) => s.load);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>(DEFAULT_SCENARIO_ID);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<(typeof scenarios)[number]['id']>(DEFAULT_SCENARIO_ID);
 
   const hasSave = !!localStorage.getItem('macro-sim-save');
 
