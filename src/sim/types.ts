@@ -74,6 +74,26 @@ export interface LogEntry {
   type: 'action' | 'event' | 'market' | 'info';
 }
 
+export interface ActionHistoryEntry {
+  turn: number;
+  actionId: string;
+  target?: string;
+  magnitude?: number;
+}
+
+export interface LastTurnDeltas {
+  reputationDelta: number;
+  riskDelta: number;
+  aumDelta: number;
+  liquidityDelta: number;
+}
+
+export interface LastTurnSummary {
+  turn: number;
+  deltas: LastTurnDeltas;
+  why: string[];
+}
+
 export interface GameState {
   turn: number;
   year: number;
@@ -90,6 +110,8 @@ export interface GameState {
   outcome: 'ongoing' | 'win' | 'loss';
   lastTurnCausalHints: string[];
   lastTurnActions: string[];
+  actionHistory: ActionHistoryEntry[];
+  lastTurnSummary: LastTurnSummary;
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
   phase: 'start' | 'playing' | 'summary' | 'gameover';
