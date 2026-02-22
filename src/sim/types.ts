@@ -60,6 +60,11 @@ export interface GameEvent {
   trigger?: (state: GameState) => boolean;
   reputationDelta?: number;
   causalHint?: string;
+  attributionRules?: {
+    decisionId?: string;
+    decisionTag?: string;
+    text: string;
+  }[];
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -77,6 +82,7 @@ export interface GameState {
   portfolio: Portfolio;
   reputation: number;       // 0-100
   lastTurnCausalHints: string[];
+  lastTurnActions: string[];
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
   phase: 'start' | 'playing' | 'summary' | 'gameover';

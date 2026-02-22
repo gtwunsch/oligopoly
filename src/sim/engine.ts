@@ -1,4 +1,4 @@
-import type { GameState, CountryState, LogEntry, Portfolio } from './types';
+import type { CountryState, Decision, GameEvent, GameState, LogEntry, Portfolio } from './types';
 import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
@@ -29,6 +29,7 @@ export function createNewGame(seed?: number): GameState {
     },
     reputation: 70,
     lastTurnCausalHints: [],
+    lastTurnActions: [],
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
     phase: 'playing',
@@ -180,12 +181,29 @@ function computeLiquidity(portfolio: Portfolio): number {
   return clamp(Math.round(cashRatio * 100 + (1 / portfolio.leverage) * 20), 0, 100);
 }
 
+function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
+  if (!event.attributionRules || executedDecisions.length === 0) {
+    return null;
+  }
+
+  for (const rule of event.attributionRules) {
+    if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
+      return rule.text;
+    }
+    if (rule.decisionTag && executedDecisions.some((decision) => decision.tags.includes(rule.decisionTag))) {
+      return rule.text;
+    }
+  }
+  return null;
+}
+
 // ── Main tick ──
 
 export function advanceTurn(state: GameState): GameState {
   const rng = createRng(state.seed + state.turn * 7919);
   const newLog: LogEntry[] = [];
   const turnCausalHints: string[] = [];
+  const executedDecisions: Decision[] = [];
   let next = structuredClone(state);
 
   // 1. Apply queued decisions
@@ -205,6 +223,7 @@ export function advanceTurn(state: GameState): GameState {
     if (dec.causalHint) {
       turnCausalHints.push(dec.causalHint);
     }
+    executedDecisions.push(dec);
     newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
   }
   next.pendingDecisions = [];
@@ -230,7 +249,9 @@ export function advanceTurn(state: GameState): GameState {
     if (ev.causalHint) {
       turnCausalHints.push(ev.causalHint);
     }
-    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${ev.description}`, type: 'event' });
+    const attribution = buildAttributionText(ev, executedDecisions);
+    const description = attribution ? `${ev.description} ${attribution}` : ev.description;
+    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
   }
 
   // 4. PnL
@@ -295,6 +316,7 @@ export function advanceTurn(state: GameState): GameState {
   }
 
   next.lastTurnCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
+  next.lastTurnActions = executedDecisions.map((decision) => decision.id);
   next.log = [...next.log, ...newLog];
   return next;
 }

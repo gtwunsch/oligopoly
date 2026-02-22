@@ -20,6 +20,12 @@ export const events: GameEvent[] = [
     weight: 3,
     reputationDelta: -1,
     causalHint: 'US inflation up -> Fed hikes rates -> global risk appetite softens',
+    attributionRules: [
+      {
+        decisionTag: 'risk',
+        text: 'Your leverage choices magnified sensitivity to tighter policy.',
+      },
+    ],
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation > 3,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -36,6 +42,12 @@ export const events: GameEvent[] = [
     weight: 2,
     reputationDelta: 1,
     causalHint: 'US inflation cools -> Fed cuts rates -> sentiment improves',
+    attributionRules: [
+      {
+        decisionId: 'provide_liquidity',
+        text: 'Your liquidity support helped calm markets before the cut.',
+      },
+    ],
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation < 2,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -52,6 +64,12 @@ export const events: GameEvent[] = [
     weight: 2,
     reputationDelta: 1,
     causalHint: 'Policy stimulus -> growth expectations rise -> sentiment improves',
+    attributionRules: [
+      {
+        decisionId: 'short_currency',
+        text: 'Your FX pressure contributed to urgency around support measures.',
+      },
+    ],
     effect: (s) => {
       const cn = s.countries.find((c) => c.id === 'cn')!;
       return updateCountry(s, 'cn', {
@@ -68,6 +86,20 @@ export const events: GameEvent[] = [
     weight: 1,
     reputationDelta: -4,
     causalHint: 'Stability down -> currency selloff deepens -> contagion fears rise',
+    attributionRules: [
+      {
+        decisionId: 'sell_sovereign_bonds',
+        text: 'Your sovereign bond selling amplified Brazil funding stress.',
+      },
+      {
+        decisionId: 'short_currency',
+        text: 'Your currency short added pressure to already fragile FX markets.',
+      },
+      {
+        decisionId: 'provide_liquidity',
+        text: 'Your liquidity support softened the first wave of panic.',
+      },
+    ],
     trigger: (s) => s.countries.find((c) => c.id === 'br')!.stability < 50,
     effect: (s) => {
       const br = s.countries.find((c) => c.id === 'br')!;
@@ -100,6 +132,12 @@ export const events: GameEvent[] = [
     weight: 2,
     reputationDelta: 1,
     causalHint: 'Risk appetite up -> equities rally -> portfolio beta pays',
+    attributionRules: [
+      {
+        decisionId: 'buy_equities',
+        text: 'Your equity positioning was aligned with this move.',
+      },
+    ],
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -115,6 +153,12 @@ export const events: GameEvent[] = [
     weight: 1,
     reputationDelta: -2,
     causalHint: 'Growth warning -> sentiment falls -> equities reprice lower',
+    attributionRules: [
+      {
+        decisionId: 'raise_leverage',
+        text: 'Your higher leverage made this slowdown harder to absorb.',
+      },
+    ],
     trigger: (s) => s.countries.find((c) => c.id === 'eu')!.growth < 1,
     effect: (s) => {
       const eu = s.countries.find((c) => c.id === 'eu')!;
@@ -149,6 +193,12 @@ export const events: GameEvent[] = [
     weight: 3,
     reputationDelta: 1,
     causalHint: 'Sentiment improves -> investors buy risk -> equities grind higher',
+    attributionRules: [
+      {
+        decisionId: 'buy_equities',
+        text: 'Your recent equity build-up benefited from the rotation.',
+      },
+    ],
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -164,6 +214,16 @@ export const events: GameEvent[] = [
     weight: 2,
     reputationDelta: -1,
     causalHint: 'Fear rises -> risk assets sold -> equity indices weaken',
+    attributionRules: [
+      {
+        decisionId: 'raise_leverage',
+        text: 'Your leveraged book amplified downside during the selloff.',
+      },
+      {
+        decisionId: 'buy_gold',
+        text: 'Your gold hedge helped cushion part of the shock.',
+      },
+    ],
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
