@@ -156,6 +156,11 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   color: var(--text-dim);
   cursor: help;
 }
+.kpi-highlight {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: #1e2538;
+}
 
 /* ── Tutorial tip ── */
 .tutorial-tip {
@@ -167,6 +172,25 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   font-size: 0.82rem;
   color: var(--text-dim);
 }
+.onboarding-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tip-dismiss-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.tip-dismiss-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
 
 /* ── Causal HUD ── */
 .causal-hud {
@@ -175,6 +199,55 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   background: #1a2234;
   border: 1px solid #2a3b64;
   border-radius: var(--radius);
+}
+.objective-widget {
+  border-bottom: 1px solid #2a3b64;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+.objective-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.objective-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.objective-dismiss {
+  border: 1px solid #2f436f;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.objective-dismiss:hover {
+  border-color: var(--accent-light);
+  color: var(--text);
+}
+.objective-text {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #dce7ff;
+}
+.objective-meta {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.causal-preview-block {
+  border-bottom: 1px solid #2a3b64;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+.causal-empty {
+  font-size: 0.78rem;
+  color: var(--text-dim);
 }
 .causal-list {
   margin-left: 16px;
@@ -274,6 +347,8 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .decision-btn:hover:not(:disabled) { border-color: var(--accent); background: #252a3a; }
 .decision-btn.queued { border-color: var(--green); background: #1a2a1a; }
+.decision-btn.previewing:not(.queued) { border-color: var(--accent-light); background: #1f2d47; }
+.decision-btn.decision-highlight { border-color: #7aa2e0; box-shadow: 0 0 0 1px rgba(122, 162, 224, 0.25); }
 .decision-btn.locked { opacity: 0.4; cursor: not-allowed; }
 .decision-btn:disabled:not(.locked) { opacity: 0.5; cursor: not-allowed; }
 .decision-name { flex: 1; font-weight: 500; }
@@ -416,4 +491,5 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   .bottom-panels { grid-template-columns: 1fr; }
   .countries-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
   .scenario-grid { grid-template-columns: 1fr; }
+  .onboarding-tip { flex-direction: column; align-items: flex-start; }
 }

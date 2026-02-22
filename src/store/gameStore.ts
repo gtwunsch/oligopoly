@@ -4,6 +4,7 @@ import {
   createNewGame,
   advanceTurn,
   decisions,
+  DEFAULT_SCENARIO_ID,
   normalizeCashBuckets,
   rebalanceCashBuckets,
 } from '../sim';
@@ -24,6 +25,158 @@ const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
   },
   why: [],
 };
+const OBJECTIVE_WINDOW_TURNS = 3;
+const STABILITY_OBJECTIVE_TARGET = 55;
+
+type QuarterObjectiveId = 'risk_under_60' | 'stabilize_country' | 'avoid_raise_leverage';
+
+interface QuarterObjective {
+  id: QuarterObjectiveId;
+  text: string;
+  rewardLabel: string;
+  reward: {
+    reputation?: number;
+    cashTotal?: number;
+  };
+  startTurn: number;
+  endTurn: number;
+  progress: number;
+  targetProgress: number;
+  countryId?: string;
+}
+
+interface UiState {
+  quarterObjective: QuarterObjective | null;
+  objectivesDismissed: boolean;
+  onboardingDismissed: boolean;
+}
+
+interface ObjectiveEvaluationResult {
+  objective: QuarterObjective;
+  resolved: boolean;
+  completed: boolean;
+}
+
+const OBJECTIVE_ROTATION: QuarterObjectiveId[] = ['risk_under_60', 'stabilize_country', 'avoid_raise_leverage'];
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+function createQuarterObjective(state: Pick<GameState, 'turn' | 'countries'>): QuarterObjective {
+  const objectiveId = OBJECTIVE_ROTATION[Math.floor(state.turn / OBJECTIVE_WINDOW_TURNS) % OBJECTIVE_ROTATION.length];
+  const startTurn = state.turn;
+  const endTurn = state.turn + OBJECTIVE_WINDOW_TURNS;
+
+  if (objectiveId === 'risk_under_60') {
+    return {
+      id: objectiveId,
+      text: `Keep Risk < 60 for ${OBJECTIVE_WINDOW_TURNS} turns`,
+      rewardLabel: '+2 Reputation',
+      reward: { reputation: 2 },
+      startTurn,
+      endTurn,
+      progress: 0,
+      targetProgress: OBJECTIVE_WINDOW_TURNS,
+    };
+  }
+
+  if (objectiveId === 'stabilize_country') {
+    const weakestCountry = state.countries.length > 0
+      ? state.countries.reduce((lowest, country) => (country.stability < lowest.stability ? country : lowest))
+      : null;
+    const countryLabel = weakestCountry ? weakestCountry.name : 'a market';
+    return {
+      id: objectiveId,
+      text: `Stabilize ${countryLabel}: stability > ${STABILITY_OBJECTIVE_TARGET}`,
+      rewardLabel: '+$1B Cash',
+      reward: { cashTotal: 1 },
+      startTurn,
+      endTurn,
+      progress: 0,
+      targetProgress: 1,
+      countryId: weakestCountry?.id,
+    };
+  }
+
+  return {
+    id: objectiveId,
+    text: `Avoid Raise Leverage for ${OBJECTIVE_WINDOW_TURNS} turns`,
+    rewardLabel: '+1 Reputation',
+    reward: { reputation: 1 },
+    startTurn,
+    endTurn,
+    progress: 0,
+    targetProgress: OBJECTIVE_WINDOW_TURNS,
+  };
+}
+
+function evaluateQuarterObjective(state: GameState, objective: QuarterObjective): ObjectiveEvaluationResult {
+  let progress = objective.progress;
+
+  if (objective.id === 'risk_under_60' && state.portfolio.riskScore < 60) {
+    progress += 1;
+  }
+
+  if (objective.id === 'stabilize_country') {
+    const targetCountry = objective.countryId
+      ? state.countries.find((country) => country.id === objective.countryId)
+      : undefined;
+    const success = targetCountry
+      ? targetCountry.stability > STABILITY_OBJECTIVE_TARGET
+      : state.countries.some((country) => country.stability > STABILITY_OBJECTIVE_TARGET);
+    if (success) {
+      progress = objective.targetProgress;
+    }
+  }
+
+  if (objective.id === 'avoid_raise_leverage' && !state.lastTurnActions.includes('raise_leverage')) {
+    progress += 1;
+  }
+
+  const updatedObjective: QuarterObjective = {
+    ...objective,
+    progress: Math.min(objective.targetProgress, progress),
+  };
+  const resolved = state.turn >= updatedObjective.endTurn;
+  const completed = resolved && updatedObjective.progress >= updatedObjective.targetProgress;
+
+  return {
+    objective: updatedObjective,
+    resolved,
+    completed,
+  };
+}
+
+function applyObjectiveReward(state: GameState, objective: QuarterObjective): GameState {
+  let next = state;
+  const reputationReward = objective.reward.reputation ?? 0;
+  const cashReward = objective.reward.cashTotal ?? 0;
+
+  if (reputationReward !== 0) {
+    next = {
+      ...next,
+      reputation: clamp(next.reputation + reputationReward, 0, 100),
+    };
+  }
+
+  if (cashReward !== 0) {
+    next = {
+      ...next,
+      portfolio: normalizeCashBuckets({
+        ...next.portfolio,
+        cashTotal: next.portfolio.cashTotal + cashReward,
+      }),
+    };
+  }
+
+  return next;
+}
+
+function objectiveResolutionText(objective: QuarterObjective, completed: boolean): string {
+  if (completed) {
+    return `Objective complete: ${objective.text}. Reward ${objective.rewardLabel}.`;
+  }
+  return `Objective missed: ${objective.text}.`;
+}
 
 function sanitizeActionHistory(
   actionHistory: Partial<GameState>['actionHistory'],
@@ -116,20 +269,30 @@ interface GameActions {
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
   dismissSummary: () => void;
+  dismissObjective: () => void;
+  dismissOnboarding: () => void;
   save: () => void;
   load: () => boolean;
   reset: () => void;
 }
 
-type GameStore = GameState & GameActions;
+type GameStore = GameState & UiState & GameActions;
 
 export const useGameStore = create<GameStore>((set, get) => ({
   ...createNewGame(),
   phase: 'start',
+  quarterObjective: null,
+  objectivesDismissed: false,
+  onboardingDismissed: false,
 
   newGame: (scenarioId) => {
     const g = createNewGame(undefined, scenarioId);
-    set(g);
+    set({
+      ...g,
+      quarterObjective: createQuarterObjective(g),
+      objectivesDismissed: false,
+      onboardingDismissed: false,
+    });
   },
 
   queueDecision: (decisionId: string) => {
@@ -190,11 +353,60 @@ export const useGameStore = create<GameStore>((set, get) => ({
       seed: state.seed,
       score: state.score,
     };
-    const next = advanceTurn(snapshot);
-    set({ ...next, phase: next.phase === 'gameover' ? 'gameover' : 'summary' });
+    let next = advanceTurn(snapshot);
+    let nextObjective = state.objectivesDismissed ? null : state.quarterObjective;
+    const objectiveLogEntries: GameState['log'] = [];
+
+    if (!state.objectivesDismissed) {
+      if (nextObjective) {
+        const evaluation = evaluateQuarterObjective(next, nextObjective);
+        nextObjective = evaluation.objective;
+
+        if (evaluation.resolved) {
+          if (evaluation.completed) {
+            next = applyObjectiveReward(next, nextObjective);
+          }
+          objectiveLogEntries.push({
+            turn: next.turn,
+            text: objectiveResolutionText(nextObjective, evaluation.completed),
+            type: 'info',
+          });
+          nextObjective = next.phase === 'gameover'
+            ? null
+            : createQuarterObjective({
+              turn: next.turn,
+              countries: next.countries,
+            });
+        }
+      } else if (next.phase !== 'gameover') {
+        nextObjective = createQuarterObjective({
+          turn: next.turn,
+          countries: next.countries,
+        });
+      }
+    }
+
+    if (objectiveLogEntries.length > 0) {
+      next = {
+        ...next,
+        log: [...next.log, ...objectiveLogEntries],
+      };
+    }
+
+    set({
+      ...next,
+      phase: next.phase === 'gameover' ? 'gameover' : 'summary',
+      quarterObjective: next.phase === 'gameover' ? null : nextObjective,
+      objectivesDismissed: state.objectivesDismissed,
+      onboardingDismissed: state.onboardingDismissed,
+    });
   },
 
   dismissSummary: () => set({ phase: 'playing' }),
+
+  dismissObjective: () => set({ objectivesDismissed: true, quarterObjective: null }),
+
+  dismissOnboarding: () => set({ onboardingDismissed: true }),
 
   save: () => {
     const s = get();
@@ -270,6 +482,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
         actionHistory: sanitizeActionHistory(data.actionHistory),
         lastTurnSummary: sanitizeLastTurnSummary(data.lastTurnSummary),
         phase: 'playing',
+        quarterObjective: createQuarterObjective({
+          turn: typeof data.turn === 'number' && Number.isFinite(data.turn)
+            ? Math.max(0, Math.floor(data.turn))
+            : base.turn,
+          countries: Array.isArray(data.countries) && data.countries.length > 0
+            ? data.countries as GameState['countries']
+            : base.countries,
+        }),
+        objectivesDismissed: false,
+        onboardingDismissed: false,
       });
       return true;
     } catch {
@@ -279,6 +501,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   reset: () => {
     localStorage.removeItem(SAVE_KEY);
-    set({ ...createNewGame(), phase: 'start' });
+    set({
+      ...createNewGame(undefined, DEFAULT_SCENARIO_ID),
+      phase: 'start',
+      quarterObjective: null,
+      objectivesDismissed: false,
+      onboardingDismissed: false,
+    });
   },
 }));
