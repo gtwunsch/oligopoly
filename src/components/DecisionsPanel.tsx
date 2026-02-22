@@ -1,13 +1,18 @@
 import { useGameStore } from '../store/gameStore';
 import { decisions } from '../sim';
 
-export function DecisionsPanel() {
+interface DecisionsPanelProps {
+  previewDecisionId: string | null;
+  onPreviewDecision: (decisionId: string | null) => void;
+}
+
+export function DecisionsPanel({ previewDecisionId, onPreviewDecision }: DecisionsPanelProps) {
   const { pendingDecisions, portfolio, turn } = useGameStore();
   const queueDecision = useGameStore((s) => s.queueDecision);
   const removeDecision = useGameStore((s) => s.removeDecision);
 
   return (
-    <div className="decisions-panel">
+    <div className="decisions-panel" onMouseLeave={() => onPreviewDecision(null)}>
       <h3>Decisions</h3>
       <div className="decisions-grid">
         {decisions.map((d) => {
@@ -21,9 +26,18 @@ export function DecisionsPanel() {
           return (
             <button
               key={d.id}
-              className={`decision-btn ${queued ? 'queued' : ''} ${locked ? 'locked' : ''}`}
+              className={`decision-btn ${queued ? 'queued' : ''} ${locked ? 'locked' : ''} ${previewDecisionId === d.id ? 'previewing' : ''}`}
               disabled={locked || cantAfford}
-              onClick={() => (queued ? removeDecision(d.id) : queueDecision(d.id))}
+              onClick={() => {
+                onPreviewDecision(d.id);
+                if (queued) {
+                  removeDecision(d.id);
+                  return;
+                }
+                queueDecision(d.id);
+              }}
+              onMouseEnter={() => onPreviewDecision(d.id)}
+              onFocus={() => onPreviewDecision(d.id)}
               title={title}
             >
               <span className="decision-name">{d.name}</span>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { KPIBar } from './KPIBar';
 import { CountryCard } from './CountryCard';
@@ -11,8 +12,13 @@ export function Dashboard() {
   const { countries, pendingDecisions, turn } = useGameStore();
   const endTurn = useGameStore((s) => s.endTurn);
   const save = useGameStore((s) => s.save);
+  const [previewDecisionId, setPreviewDecisionId] = useState<string | null>(null);
 
   const showTutorial = turn < 2;
+
+  useEffect(() => {
+    setPreviewDecisionId(null);
+  }, [turn]);
 
   return (
     <div className="dashboard">
@@ -25,7 +31,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <CausalChainHUD />
+      <CausalChainHUD previewDecisionId={previewDecisionId} />
 
       <div className="dashboard-grid">
         <section className="panel countries-section">
@@ -44,7 +50,7 @@ export function Dashboard() {
       </div>
 
       <div className="bottom-panels">
-        <DecisionsPanel />
+        <DecisionsPanel previewDecisionId={previewDecisionId} onPreviewDecision={setPreviewDecisionId} />
         <EventLog />
       </div>
 
