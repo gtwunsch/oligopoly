@@ -1,5 +1,7 @@
 import type { Decision, GameState, PortfolioAllocation } from './types';
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 function addAllocation(
   state: GameState,
   countryId: string,
@@ -21,65 +23,95 @@ function addAllocation(
   return { portfolio: p };
 }
 
+function reduceAllocation(
+  state: GameState,
+  countryId: string,
+  asset: PortfolioAllocation['asset'],
+  weight: number,
+): { portfolio: GameState['portfolio']; soldWeight: number } {
+  const p = {
+    ...state.portfolio,
+    allocations: state.portfolio.allocations.map((a) => ({ ...a })),
+  };
+  const existing = p.allocations.find((a) => a.countryId === countryId && a.asset === asset);
+  if (!existing) {
+    return { portfolio: p, soldWeight: 0 };
+  }
+
+  const soldWeight = Math.min(weight, existing.weight);
+  existing.weight = Math.max(0, existing.weight - soldWeight);
+  p.allocations = p.allocations.filter((a) => a.weight > 0.0001);
+  p.cash += soldWeight * p.aum;
+  return { portfolio: p, soldWeight };
+}
+
 export const decisions: Decision[] = [
   {
-    id: 'buy_us_bonds',
-    name: 'Buy US Treasuries',
-    description: 'Safe haven, yields tied to Fed rate.',
+    id: 'buy_sovereign_bonds',
+    name: 'Buy Sovereign Bonds',
+    description: 'Benefit: steady carry. Cost: lower upside than equities.',
     cost: 2,
-    tags: ['bonds', 'us'],
+    tags: ['bonds', 'income'],
     reputationDelta: 1,
-    causalHint: 'US rates down -> bond prices up -> treasury holdings gain',
-    effect: (s) => addAllocation(s, 'us', 'sovereign_bonds', 0.05),
+    causalHint: 'Rates down -> bond prices up -> carry plus mark-to-market gains',
+    effect: (s) => addAllocation(s, 'br', 'sovereign_bonds', 0.05),
   },
   {
-    id: 'buy_eu_bonds',
-    name: 'Buy EU Sovereign Bonds',
-    description: 'Eurozone government debt exposure.',
-    cost: 2,
-    tags: ['bonds', 'eu'],
-    reputationDelta: 1,
-    causalHint: 'EU rates down -> bond prices up -> euro bond exposure gains',
-    effect: (s) => addAllocation(s, 'eu', 'sovereign_bonds', 0.05),
-  },
-  {
-    id: 'buy_em_equities',
-    name: 'Buy EM Equities',
-    description: 'High risk/reward emerging market stocks.',
-    cost: 3,
-    tags: ['equities', 'emerging'],
-    reputationDelta: -1,
-    causalHint: 'EM growth up -> equities up -> returns rise with volatility',
-    effect: (s) => addAllocation(s, 'br', 'equities', 0.05),
-  },
-  {
-    id: 'buy_asia_equities',
-    name: 'Buy Asia-Pacific Equities',
-    description: 'Diversified Asia equity basket.',
-    cost: 3,
-    tags: ['equities', 'asia'],
-    reputationDelta: -1,
-    causalHint: 'Asia sentiment up -> equities up -> basket performance improves',
+    id: 'sell_sovereign_bonds',
+    name: 'Sell Sovereign Bonds',
+    description: 'Benefit: raise cash fast. Cost: can destabilize fragile markets.',
+    cost: 0,
+    tags: ['bonds', 'de-risk'],
+    reputationDelta: -2,
+    causalHint: 'Bond selling -> local rates up -> fragile country stability down',
     effect: (s) => {
-      const s1 = addAllocation(s, 'cn', 'equities', 0.025);
-      const merged = { ...s, ...s1, portfolio: { ...s.portfolio, ...s1.portfolio } };
-      return addAllocation(merged, 'jp', 'equities', 0.025);
+      const { portfolio, soldWeight } = reduceAllocation(s, 'br', 'sovereign_bonds', 0.05);
+      if (soldWeight <= 0) {
+        return { portfolio };
+      }
+      return {
+        portfolio,
+        countries: s.countries.map((c) =>
+          c.id === 'br'
+            ? {
+                ...c,
+                interestRate: clamp(c.interestRate + 0.2, 0, 20),
+                stability: clamp(c.stability - 3, 0, 100),
+                sentiment: clamp(c.sentiment - 5, -100, 100),
+              }
+            : c,
+        ),
+      };
     },
   },
   {
-    id: 'short_cny',
-    name: 'Short CNY',
-    description: 'Bet against the yuan. Profits if CNY weakens.',
+    id: 'buy_equities',
+    name: 'Buy Equities',
+    description: 'Benefit: higher growth upside. Cost: higher drawdown risk.',
+    cost: 3,
+    tags: ['equities', 'growth'],
+    reputationDelta: -1,
+    causalHint: 'Growth and sentiment up -> equities up -> portfolio beta increases',
+    effect: (s) => {
+      const s1 = addAllocation(s, 'cn', 'equities', 0.025);
+      const merged = { ...s, ...s1, portfolio: { ...s.portfolio, ...s1.portfolio } };
+      return addAllocation(merged, 'br', 'equities', 0.025);
+    },
+  },
+  {
+    id: 'short_currency',
+    name: 'Short Currency',
+    description: 'Benefit: profit on depreciation. Cost: reputation hit from pressure.',
     cost: 1,
-    tags: ['fx', 'china'],
+    tags: ['fx', 'macro'],
     reputationDelta: -2,
-    causalHint: 'CNY weakens -> FX short pays off -> local stress risk rises',
-    effect: (s) => addAllocation(s, 'cn', 'fx_short', 0.04),
+    causalHint: 'Currency weakens -> short position gains -> local stress risk rises',
+    effect: (s) => addAllocation(s, 'br', 'fx_short', 0.04),
   },
   {
     id: 'buy_gold',
     name: 'Buy Gold',
-    description: 'Inflation hedge, uncorrelated to equities.',
+    description: 'Benefit: inflation hedge. Cost: weaker returns in risk-on markets.',
     cost: 2,
     tags: ['gold', 'hedge'],
     causalHint: 'Inflation up -> gold demand up -> portfolio hedge improves',
@@ -88,7 +120,7 @@ export const decisions: Decision[] = [
   {
     id: 'raise_leverage',
     name: 'Raise Leverage',
-    description: 'Increase leverage by 0.5x. More return, more risk.',
+    description: 'Benefit: amplify upside. Cost: amplify losses and fragility.',
     cost: 0,
     tags: ['risk'],
     reputationDelta: -1,
@@ -103,7 +135,7 @@ export const decisions: Decision[] = [
   {
     id: 'reduce_leverage',
     name: 'Reduce Leverage',
-    description: 'Decrease leverage by 0.5x. Safer but lower return.',
+    description: 'Benefit: reduce blow-up risk. Cost: lower upside this turn.',
     cost: 0,
     tags: ['risk'],
     reputationDelta: 1,
@@ -117,28 +149,48 @@ export const decisions: Decision[] = [
   },
   {
     id: 'enter_irs',
-    name: 'Enter Rate Swap (US)',
-    description: 'Receive fixed / pay floating. Profits if rates drop.',
+    name: 'Interest Rate Swap',
+    description: 'Benefit: hedge rate moves. Cost: derivative complexity and basis risk.',
     cost: 1,
-    tags: ['derivatives', 'us'],
+    tags: ['derivatives', 'rates'],
     reputationDelta: -1,
     causalHint: 'Rates fall -> swap mark-to-market rises -> derivative P&L improves',
     effect: (s) => addAllocation(s, 'us', 'irs', 0.04),
   },
   {
-    id: 'sell_all',
-    name: 'Liquidate All',
-    description: 'Move everything to cash. Reset allocations.',
-    cost: 0,
-    tags: ['cash'],
-    reputationDelta: 1,
-    causalHint: 'Risky positions closed -> market exposure drops -> liquidity improves',
+    id: 'provide_liquidity',
+    name: 'Provide Liquidity',
+    description: 'Benefit: stabilizes stressed market. Cost: ties up capital now.',
+    cost: 2,
+    tags: ['stability', 'intervention'],
+    reputationDelta: 2,
+    causalHint: 'Liquidity support -> rates ease -> stability and sentiment improve',
     effect: (s) => ({
-      portfolio: {
-        ...s.portfolio,
-        allocations: [],
-        cash: s.portfolio.aum,
-      },
+      countries: s.countries.map((c) =>
+        c.id === 'br'
+          ? {
+              ...c,
+              interestRate: clamp(c.interestRate - 0.35, 0, 20),
+              stability: clamp(c.stability + 4, 0, 100),
+              sentiment: clamp(c.sentiment + 6, -100, 100),
+            }
+          : c,
+      ),
+    }),
+  },
+  {
+    id: 'lobby_pr_spend',
+    name: 'Lobby / PR Spend',
+    description: 'Benefit: rebuild reputation. Cost: expensive and slightly dampens sentiment.',
+    cost: 2,
+    tags: ['policy', 'reputation'],
+    reputationDelta: 6,
+    causalHint: 'PR campaign -> political heat cools -> reputation improves',
+    effect: (s) => ({
+      countries: s.countries.map((c) => ({
+        ...c,
+        sentiment: clamp(c.sentiment - 1, -100, 100),
+      })),
     }),
   },
 ];
