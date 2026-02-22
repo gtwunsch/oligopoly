@@ -1,4 +1,10 @@
 export { createNewGame, advanceTurn } from './engine';
+export {
+  applyChoiceEvent,
+  choiceEvents,
+  hasChoiceEventDefinition,
+  pickChoiceEventForTurn,
+} from './choiceEvents';
 export { decisions } from './decisions';
 export { events } from './events';
 export { initialCountries } from './countries';

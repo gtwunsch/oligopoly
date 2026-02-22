@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import type { DecisionExecutionInput, GameState, Portfolio } from '../sim/types';
 import {
+  applyChoiceEvent,
   createNewGame,
   advanceTurn,
   decisions,
   DEFAULT_SCENARIO_ID,
   normalizeDecisionId,
+  hasChoiceEventDefinition,
   normalizeCashBuckets,
+  pickChoiceEventForTurn,
   rebalanceCashBuckets,
 } from '../sim';
 
@@ -17,6 +20,7 @@ const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 const DEFAULT_ACTION_HISTORY: GameState['actionHistory'] = [];
 const DEFAULT_PENDING_DECISION_PARAMS: GameState['pendingDecisionParams'] = {};
+const DEFAULT_ACTIVE_CHOICE_EVENT: GameState['activeChoiceEvent'] = null;
 const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
   turn: 0,
   deltas: {
@@ -247,14 +251,71 @@ function sanitizeActionHistory(
       const normalizedActionId = normalizeDecisionId(actionId);
       const target = (entry as { target?: unknown }).target;
       const magnitude = (entry as { magnitude?: unknown }).magnitude;
+      const choice = (entry as { choice?: unknown }).choice;
       return {
         turn: Math.max(0, Math.floor(turn)),
         actionId: normalizedActionId,
+        ...(choice === 'A' || choice === 'B' ? { choice } : {}),
         ...(typeof target === 'string' ? { target } : {}),
         ...(typeof magnitude === 'number' && Number.isFinite(magnitude) ? { magnitude } : {}),
       };
     })
     .filter((entry): entry is GameState['actionHistory'][number] => entry !== null);
+}
+
+function sanitizeActiveChoiceEvent(
+  choiceEvent: Partial<GameState>['activeChoiceEvent'],
+): GameState['activeChoiceEvent'] {
+  if (!choiceEvent || typeof choiceEvent !== 'object') {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  const id = (choiceEvent as { id?: unknown }).id;
+  const headline = (choiceEvent as { headline?: unknown }).headline;
+  const why = (choiceEvent as { why?: unknown }).why;
+  const optionA = (choiceEvent as { optionA?: unknown }).optionA;
+  const optionB = (choiceEvent as { optionB?: unknown }).optionB;
+
+  if (
+    typeof id !== 'string' ||
+    !hasChoiceEventDefinition(id) ||
+    typeof headline !== 'string' ||
+    typeof why !== 'string' ||
+    !optionA ||
+    typeof optionA !== 'object' ||
+    !optionB ||
+    typeof optionB !== 'object'
+  ) {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  const optionALabel = (optionA as { label?: unknown }).label;
+  const optionAImpact = (optionA as { impact?: unknown }).impact;
+  const optionBLabel = (optionB as { label?: unknown }).label;
+  const optionBImpact = (optionB as { impact?: unknown }).impact;
+
+  if (
+    typeof optionALabel !== 'string' ||
+    typeof optionAImpact !== 'string' ||
+    typeof optionBLabel !== 'string' ||
+    typeof optionBImpact !== 'string'
+  ) {
+    return DEFAULT_ACTIVE_CHOICE_EVENT;
+  }
+
+  return {
+    id,
+    headline,
+    why,
+    optionA: {
+      label: optionALabel,
+      impact: optionAImpact,
+    },
+    optionB: {
+      label: optionBLabel,
+      impact: optionBImpact,
+    },
+  };
 }
 
 function sanitizeLastTurnSummary(
@@ -323,6 +384,7 @@ interface GameActions {
   queueDecision: (decisionId: string, input?: DecisionExecutionInput) => void;
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
+  resolveChoiceEvent: (choice: 'A' | 'B') => void;
   dismissSummary: () => void;
   dismissObjective: () => void;
   dismissOnboarding: () => void;
@@ -410,6 +472,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnCausalHints: state.lastTurnCausalHints,
       lastTurnActions: state.lastTurnActions,
       actionHistory: state.actionHistory,
+      activeChoiceEvent: state.activeChoiceEvent,
       lastTurnSummary: state.lastTurnSummary,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
@@ -418,6 +481,101 @@ export const useGameStore = create<GameStore>((set, get) => ({
       seed: state.seed,
       score: state.score,
     };
+
+    const choiceEvent = pickChoiceEventForTurn(snapshot);
+    if (choiceEvent) {
+      set({
+        ...snapshot,
+        activeChoiceEvent: choiceEvent,
+        phase: 'choice',
+        quarterObjective: state.quarterObjective,
+        objectivesDismissed: state.objectivesDismissed,
+        onboardingDismissed: state.onboardingDismissed,
+      });
+      return;
+    }
+
+    let next = advanceTurn(snapshot);
+    let nextObjective = state.objectivesDismissed ? null : state.quarterObjective;
+    const objectiveLogEntries: GameState['log'] = [];
+
+    if (!state.objectivesDismissed) {
+      if (nextObjective) {
+        const evaluation = evaluateQuarterObjective(next, nextObjective);
+        nextObjective = evaluation.objective;
+
+        if (evaluation.resolved) {
+          if (evaluation.completed) {
+            next = applyObjectiveReward(next, nextObjective);
+          }
+          objectiveLogEntries.push({
+            turn: next.turn,
+            text: objectiveResolutionText(nextObjective, evaluation.completed),
+            type: 'info',
+          });
+          nextObjective = next.phase === 'gameover'
+            ? null
+            : createQuarterObjective({
+              turn: next.turn,
+              countries: next.countries,
+            });
+        }
+      } else if (next.phase !== 'gameover') {
+        nextObjective = createQuarterObjective({
+          turn: next.turn,
+          countries: next.countries,
+        });
+      }
+    }
+
+    if (objectiveLogEntries.length > 0) {
+      next = {
+        ...next,
+        log: [...next.log, ...objectiveLogEntries],
+      };
+    }
+
+    set({
+      ...next,
+      phase: next.phase === 'gameover' ? 'gameover' : 'summary',
+      quarterObjective: next.phase === 'gameover' ? null : nextObjective,
+      objectivesDismissed: state.objectivesDismissed,
+      onboardingDismissed: state.onboardingDismissed,
+    });
+  },
+
+  resolveChoiceEvent: (choice) => {
+    const state = get();
+    if (state.phase !== 'choice' || !state.activeChoiceEvent) return;
+
+    const withChoiceApplied = applyChoiceEvent(state, state.activeChoiceEvent.id, choice);
+    const snapshot: GameState = {
+      turn: withChoiceApplied.turn,
+      year: withChoiceApplied.year,
+      quarter: withChoiceApplied.quarter,
+      scenarioId: withChoiceApplied.scenarioId,
+      scenarioName: withChoiceApplied.scenarioName,
+      countries: withChoiceApplied.countries,
+      eventWeightBias: withChoiceApplied.eventWeightBias,
+      worldFlags: withChoiceApplied.worldFlags,
+      portfolio: withChoiceApplied.portfolio,
+      reputation: withChoiceApplied.reputation,
+      winTargetAum: withChoiceApplied.winTargetAum,
+      maxTurns: withChoiceApplied.maxTurns,
+      outcome: withChoiceApplied.outcome,
+      lastTurnCausalHints: withChoiceApplied.lastTurnCausalHints,
+      lastTurnActions: withChoiceApplied.lastTurnActions,
+      actionHistory: withChoiceApplied.actionHistory,
+      activeChoiceEvent: null,
+      lastTurnSummary: withChoiceApplied.lastTurnSummary,
+      log: withChoiceApplied.log,
+      pendingDecisions: withChoiceApplied.pendingDecisions,
+      pendingDecisionParams: withChoiceApplied.pendingDecisionParams,
+      phase: 'playing',
+      seed: withChoiceApplied.seed,
+      score: withChoiceApplied.score,
+    };
+
     let next = advanceTurn(snapshot);
     let nextObjective = state.objectivesDismissed ? null : state.quarterObjective;
     const objectiveLogEntries: GameState['log'] = [];
@@ -492,6 +650,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnCausalHints: s.lastTurnCausalHints,
       lastTurnActions: s.lastTurnActions,
       actionHistory: s.actionHistory,
+      activeChoiceEvent: s.activeChoiceEvent,
       lastTurnSummary: s.lastTurnSummary,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
@@ -511,6 +670,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const data = JSON.parse(raw) as LoadedSave;
       const base = createNewGame();
       const pendingDecisions = sanitizePendingDecisions(data.pendingDecisions);
+      const activeChoiceEvent = sanitizeActiveChoiceEvent(data.activeChoiceEvent);
       set({
         ...base,
         ...data,
@@ -544,8 +704,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
           ? data.lastTurnActions.filter((action): action is string => typeof action === 'string')
           : DEFAULT_LAST_TURN_ACTIONS,
         actionHistory: sanitizeActionHistory(data.actionHistory),
+        activeChoiceEvent,
         lastTurnSummary: sanitizeLastTurnSummary(data.lastTurnSummary),
-        phase: 'playing',
+        phase: activeChoiceEvent ? 'choice' : 'playing',
         quarterObjective: createQuarterObjective({
           turn: typeof data.turn === 'number' && Number.isFinite(data.turn)
             ? Math.max(0, Math.floor(data.turn))
