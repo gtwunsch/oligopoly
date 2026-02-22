@@ -47,6 +47,7 @@ export interface Decision {
   cost: number;             // $B cost to execute
   tags: string[];
   unlockTurn?: number;
+  reputationDelta?: number;
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -56,6 +57,7 @@ export interface GameEvent {
   description: string;
   weight: number;           // relative probability
   trigger?: (state: GameState) => boolean;
+  reputationDelta?: number;
   effect: (state: GameState) => Partial<GameState>;
 }
 
@@ -71,6 +73,7 @@ export interface GameState {
   quarter: number;          // 1-4
   countries: CountryState[];
   portfolio: Portfolio;
+  reputation: number;       // 0-100
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
   phase: 'start' | 'playing' | 'summary' | 'gameover';

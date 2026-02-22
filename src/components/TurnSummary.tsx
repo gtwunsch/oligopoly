@@ -1,7 +1,7 @@
 import { useGameStore } from '../store/gameStore';
 
 export function TurnSummary() {
-  const { log, turn, portfolio, phase } = useGameStore();
+  const { log, turn, portfolio, reputation, phase } = useGameStore();
   const dismissSummary = useGameStore((s) => s.dismissSummary);
   const reset = useGameStore((s) => s.reset);
 
@@ -23,6 +23,12 @@ export function TurnSummary() {
         <div className="summary-aum">
           <span>Total AUM:</span>
           <span>${portfolio.aum.toFixed(1)}B</span>
+        </div>
+        <div className="summary-aum">
+          <span>Reputation:</span>
+          <span className={reputation < 35 ? 'text-danger' : reputation < 60 ? 'text-warn' : 'text-safe'}>
+            {reputation}/100
+          </span>
         </div>
         <div className="summary-events">
           {turnLog.map((e, i) => (

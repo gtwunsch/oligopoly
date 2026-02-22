@@ -28,6 +28,7 @@ export const decisions: Decision[] = [
     description: 'Safe haven, yields tied to Fed rate.',
     cost: 2,
     tags: ['bonds', 'us'],
+    reputationDelta: 1,
     effect: (s) => addAllocation(s, 'us', 'sovereign_bonds', 0.05),
   },
   {
@@ -36,6 +37,7 @@ export const decisions: Decision[] = [
     description: 'Eurozone government debt exposure.',
     cost: 2,
     tags: ['bonds', 'eu'],
+    reputationDelta: 1,
     effect: (s) => addAllocation(s, 'eu', 'sovereign_bonds', 0.05),
   },
   {
@@ -44,6 +46,7 @@ export const decisions: Decision[] = [
     description: 'High risk/reward emerging market stocks.',
     cost: 3,
     tags: ['equities', 'emerging'],
+    reputationDelta: -1,
     effect: (s) => addAllocation(s, 'br', 'equities', 0.05),
   },
   {
@@ -52,6 +55,7 @@ export const decisions: Decision[] = [
     description: 'Diversified Asia equity basket.',
     cost: 3,
     tags: ['equities', 'asia'],
+    reputationDelta: -1,
     effect: (s) => {
       const s1 = addAllocation(s, 'cn', 'equities', 0.025);
       const merged = { ...s, ...s1, portfolio: { ...s.portfolio, ...s1.portfolio } };
@@ -64,6 +68,7 @@ export const decisions: Decision[] = [
     description: 'Bet against the yuan. Profits if CNY weakens.',
     cost: 1,
     tags: ['fx', 'china'],
+    reputationDelta: -2,
     effect: (s) => addAllocation(s, 'cn', 'fx_short', 0.04),
   },
   {
@@ -80,6 +85,7 @@ export const decisions: Decision[] = [
     description: 'Increase leverage by 0.5x. More return, more risk.',
     cost: 0,
     tags: ['risk'],
+    reputationDelta: -1,
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -93,6 +99,7 @@ export const decisions: Decision[] = [
     description: 'Decrease leverage by 0.5x. Safer but lower return.',
     cost: 0,
     tags: ['risk'],
+    reputationDelta: 1,
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -106,6 +113,7 @@ export const decisions: Decision[] = [
     description: 'Receive fixed / pay floating. Profits if rates drop.',
     cost: 1,
     tags: ['derivatives', 'us'],
+    reputationDelta: -1,
     effect: (s) => addAllocation(s, 'us', 'irs', 0.04),
   },
   {
@@ -114,6 +122,7 @@ export const decisions: Decision[] = [
     description: 'Move everything to cash. Reset allocations.',
     cost: 0,
     tags: ['cash'],
+    reputationDelta: 1,
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,

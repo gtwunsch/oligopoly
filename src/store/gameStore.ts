@@ -3,6 +3,7 @@ import type { GameState } from '../sim/types';
 import { createNewGame, advanceTurn, decisions } from '../sim';
 
 const SAVE_KEY = 'macro-sim-save';
+const DEFAULT_REPUTATION = 70;
 
 interface GameActions {
   newGame: () => void;
@@ -63,6 +64,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       quarter: state.quarter,
       countries: state.countries,
       portfolio: state.portfolio,
+      reputation: state.reputation,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
       phase: state.phase,
@@ -83,6 +85,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       quarter: s.quarter,
       countries: s.countries,
       portfolio: s.portfolio,
+      reputation: s.reputation,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
       phase: s.phase,
@@ -96,8 +99,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     try {
-      const data = JSON.parse(raw) as GameState;
-      set({ ...data, phase: 'playing' });
+      const data = JSON.parse(raw) as Partial<GameState>;
+      set({
+        ...createNewGame(),
+        ...data,
+        reputation: typeof data.reputation === 'number' ? data.reputation : DEFAULT_REPUTATION,
+        phase: 'playing',
+      });
       return true;
     } catch {
       return false;

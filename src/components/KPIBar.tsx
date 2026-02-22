@@ -5,7 +5,7 @@ function fmt(n: number, decimals = 1): string {
 }
 
 export function KPIBar() {
-  const { year, quarter, turn, portfolio, score } = useGameStore();
+  const { year, quarter, turn, portfolio, reputation, score } = useGameStore();
 
   return (
     <header className="kpi-bar">
@@ -35,6 +35,12 @@ export function KPIBar() {
         <span className="kpi-label">Risk</span>
         <span className={`kpi-value ${portfolio.riskScore > 60 ? 'text-danger' : portfolio.riskScore > 35 ? 'text-warn' : 'text-safe'}`}>
           {portfolio.riskScore}
+        </span>
+      </div>
+      <div className="kpi">
+        <span className="kpi-label">Reputation</span>
+        <span className={`kpi-value ${reputation < 35 ? 'text-danger' : reputation < 60 ? 'text-warn' : 'text-safe'}`}>
+          {reputation}
         </span>
       </div>
       <div className="kpi">

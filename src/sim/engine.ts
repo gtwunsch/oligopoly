@@ -27,6 +27,7 @@ export function createNewGame(seed?: number): GameState {
       riskScore: 0,
       liquidity: 100,
     },
+    reputation: 70,
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
     phase: 'playing',
@@ -194,6 +195,12 @@ export function advanceTurn(state: GameState): GameState {
     Object.assign(next, patch);
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
     if (patch.countries) next.countries = patch.countries;
+    if (typeof patch.reputation === 'number') {
+      next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (dec.reputationDelta) {
+      next.reputation = clamp(next.reputation + dec.reputationDelta, 0, 100);
+    }
     newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
   }
   next.pendingDecisions = [];
@@ -210,6 +217,12 @@ export function advanceTurn(state: GameState): GameState {
     const patch = ev.effect(next);
     if (patch.countries) next.countries = patch.countries;
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
+    if (typeof patch.reputation === 'number') {
+      next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (ev.reputationDelta) {
+      next.reputation = clamp(next.reputation + ev.reputationDelta, 0, 100);
+    }
     newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${ev.description}`, type: 'event' });
   }
 
@@ -230,6 +243,22 @@ export function advanceTurn(state: GameState): GameState {
   next.portfolio.riskScore = computeRisk(next.portfolio, next.countries);
   next.portfolio.liquidity = computeLiquidity(next.portfolio);
 
+  // 5b. Reputation drifts based on portfolio risk and world stability.
+  const avgStability = next.countries.reduce((s, c) => s + c.stability, 0) / next.countries.length;
+  let reputationDelta = 0;
+  if (next.portfolio.riskScore > 70) reputationDelta -= 2;
+  if (avgStability < 55) reputationDelta -= 1;
+  if (next.portfolio.riskScore < 35 && avgStability > 75) reputationDelta += 1;
+  if (reputationDelta !== 0) {
+    next.reputation = clamp(next.reputation + reputationDelta, 0, 100);
+    const repSign = reputationDelta > 0 ? '+' : '';
+    newLog.push({
+      turn: next.turn + 1,
+      text: `Reputation ${repSign}${reputationDelta} (${next.reputation}/100)`,
+      type: 'market',
+    });
+  }
+
   // 6. Advance clock
   next.turn += 1;
   next.quarter = ((next.quarter) % 4) + 1;
@@ -240,11 +269,15 @@ export function advanceTurn(state: GameState): GameState {
   next.score = Math.round(
     (next.portfolio.aum - 100) * 10 +
     next.turn * 2 +
-    (100 - next.portfolio.riskScore) * 0.5,
+    (100 - next.portfolio.riskScore) * 0.5 +
+    next.reputation * 0.25,
   );
 
   // 8. Game over check
-  if (next.portfolio.aum < 20) {
+  if (next.reputation <= 0) {
+    newLog.push({ turn: next.turn, text: 'Reputation collapsed. Regulators have seized the bank.', type: 'info' });
+    next.phase = 'gameover';
+  } else if (next.portfolio.aum < 20) {
     newLog.push({ turn: next.turn, text: 'AUM below $20B. The board has lost confidence.', type: 'info' });
     next.phase = 'gameover';
   }

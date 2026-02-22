@@ -18,6 +18,7 @@ export const events: GameEvent[] = [
     name: 'Fed Rate Hike',
     description: 'The Federal Reserve raises rates by 25bp.',
     weight: 3,
+    reputationDelta: -1,
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation > 3,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -32,6 +33,7 @@ export const events: GameEvent[] = [
     name: 'Fed Rate Cut',
     description: 'The Federal Reserve cuts rates by 25bp.',
     weight: 2,
+    reputationDelta: 1,
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation < 2,
     effect: (s) => {
       const us = s.countries.find((c) => c.id === 'us')!;
@@ -46,6 +48,7 @@ export const events: GameEvent[] = [
     name: 'China Stimulus Package',
     description: 'Beijing announces fiscal stimulus. Growth outlook improves.',
     weight: 2,
+    reputationDelta: 1,
     effect: (s) => {
       const cn = s.countries.find((c) => c.id === 'cn')!;
       return updateCountry(s, 'cn', {
@@ -60,6 +63,7 @@ export const events: GameEvent[] = [
     name: 'EM Currency Crisis',
     description: 'Emerging market currencies plunge. Contagion fears rise.',
     weight: 1,
+    reputationDelta: -4,
     trigger: (s) => s.countries.find((c) => c.id === 'br')!.stability < 50,
     effect: (s) => {
       const br = s.countries.find((c) => c.id === 'br')!;
@@ -75,6 +79,7 @@ export const events: GameEvent[] = [
     name: 'Oil Price Spike',
     description: 'Geopolitical tensions push oil prices up. Inflation risk.',
     weight: 2,
+    reputationDelta: -2,
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -88,6 +93,7 @@ export const events: GameEvent[] = [
     name: 'Global Tech Rally',
     description: 'AI optimism fuels a tech-led equity rally.',
     weight: 2,
+    reputationDelta: 1,
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -101,6 +107,7 @@ export const events: GameEvent[] = [
     name: 'Eurozone Recession Warning',
     description: 'PMI data signals contraction in the Eurozone.',
     weight: 1,
+    reputationDelta: -2,
     trigger: (s) => s.countries.find((c) => c.id === 'eu')!.growth < 1,
     effect: (s) => {
       const eu = s.countries.find((c) => c.id === 'eu')!;
@@ -116,6 +123,7 @@ export const events: GameEvent[] = [
     name: 'Japan Ends Yield Curve Control',
     description: 'BoJ surprises markets by ending YCC. Yen surges.',
     weight: 1,
+    reputationDelta: -1,
     trigger: (s) => s.countries.find((c) => c.id === 'jp')!.inflation > 2.5,
     effect: (s) => {
       const jp = s.countries.find((c) => c.id === 'jp')!;
@@ -131,6 +139,7 @@ export const events: GameEvent[] = [
     name: 'Risk-On Sentiment Wave',
     description: 'Global investors rotate into risk assets.',
     weight: 3,
+    reputationDelta: 1,
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
@@ -144,6 +153,7 @@ export const events: GameEvent[] = [
     name: 'Risk-Off Flight to Safety',
     description: 'Investors flee to bonds and gold. Equities dip.',
     weight: 2,
+    reputationDelta: -1,
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,
