@@ -518,6 +518,53 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   gap: 2px;
 }
 
+.choice-event-card {
+  text-align: left;
+  max-width: 560px;
+}
+.choice-event-why {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  margin-bottom: 12px;
+}
+.choice-options {
+  display: grid;
+  gap: 10px;
+}
+.choice-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  border-radius: var(--radius);
+  padding: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+.choice-option-btn:hover {
+  border-color: var(--accent);
+  background: #252a3a;
+}
+.choice-option-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-light);
+}
+.choice-option-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.choice-option-impact {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
 /* ── Recharts overrides ── */
 .recharts-cartesian-axis-tick-value { fill: var(--text-dim) !important; }
 .recharts-tooltip-wrapper .recharts-default-tooltip {
