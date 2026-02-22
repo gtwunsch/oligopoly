@@ -117,7 +117,7 @@ describe('sim sanity checks', () => {
       ['short_currency'],
       ['provide_liquidity'],
       ['reduce_leverage'],
-      ['sell_sovereign_bonds'],
+      ['SELL_BONDS'],
       ['enter_irs'],
       ['lobby_pr_spend'],
       ['buy_equities'],

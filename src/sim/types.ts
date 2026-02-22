@@ -51,7 +51,12 @@ export interface Decision {
   unlockTurn?: number;
   reputationDelta?: number;
   causalHint?: string;
-  effect: (state: GameState) => Partial<GameState>;
+  effect: (state: GameState, input?: DecisionExecutionInput) => Partial<GameState>;
+}
+
+export interface DecisionExecutionInput {
+  targetCountry?: string;
+  amount?: number;
 }
 
 export interface GameEvent {
@@ -119,6 +124,7 @@ export interface GameState {
   lastTurnSummary: LastTurnSummary;
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
+  pendingDecisionParams: Record<string, DecisionExecutionInput>;
   phase: 'start' | 'playing' | 'summary' | 'gameover';
   seed: number;
   score: number;

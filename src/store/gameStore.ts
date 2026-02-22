@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import type { GameState, Portfolio } from '../sim/types';
+import type { DecisionExecutionInput, GameState, Portfolio } from '../sim/types';
 import {
   createNewGame,
   advanceTurn,
   decisions,
   DEFAULT_SCENARIO_ID,
+  normalizeDecisionId,
   normalizeCashBuckets,
   rebalanceCashBuckets,
 } from '../sim';
@@ -15,6 +16,7 @@ const DEFAULT_REPUTATION = 70;
 const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 const DEFAULT_ACTION_HISTORY: GameState['actionHistory'] = [];
+const DEFAULT_PENDING_DECISION_PARAMS: GameState['pendingDecisionParams'] = {};
 const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
   turn: 0,
   deltas: {
@@ -178,6 +180,58 @@ function objectiveResolutionText(objective: QuarterObjective, completed: boolean
   return `Objective missed: ${objective.text}.`;
 }
 
+function sanitizeDecisionInput(input?: DecisionExecutionInput): DecisionExecutionInput | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const targetCountry = typeof input.targetCountry === 'string' ? input.targetCountry : undefined;
+  const amount = typeof input.amount === 'number' && Number.isFinite(input.amount)
+    ? Math.max(0.001, input.amount)
+    : undefined;
+  if (targetCountry === undefined && amount === undefined) {
+    return undefined;
+  }
+  return {
+    ...(targetCountry !== undefined ? { targetCountry } : {}),
+    ...(amount !== undefined ? { amount } : {}),
+  };
+}
+
+function sanitizePendingDecisions(
+  pendingDecisions: Partial<GameState>['pendingDecisions'],
+): GameState['pendingDecisions'] {
+  if (!Array.isArray(pendingDecisions)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const decisionId of pendingDecisions) {
+    if (typeof decisionId !== 'string') continue;
+    const normalizedId = normalizeDecisionId(decisionId);
+    if (seen.has(normalizedId)) continue;
+    if (!decisions.some((decision) => decision.id === normalizedId)) continue;
+    seen.add(normalizedId);
+    result.push(normalizedId);
+  }
+  return result;
+}
+
+function sanitizePendingDecisionParams(
+  pendingDecisionParams: Partial<GameState>['pendingDecisionParams'],
+  queuedDecisionIds: string[],
+): GameState['pendingDecisionParams'] {
+  if (!pendingDecisionParams || typeof pendingDecisionParams !== 'object') {
+    return DEFAULT_PENDING_DECISION_PARAMS;
+  }
+
+  const queuedIds = new Set(queuedDecisionIds);
+  const sanitized: GameState['pendingDecisionParams'] = {};
+  for (const [decisionId, input] of Object.entries(pendingDecisionParams)) {
+    const normalizedDecisionId = normalizeDecisionId(decisionId);
+    if (!queuedIds.has(normalizedDecisionId)) continue;
+    const normalizedInput = sanitizeDecisionInput(input);
+    if (!normalizedInput) continue;
+    sanitized[normalizedDecisionId] = normalizedInput;
+  }
+  return sanitized;
+}
+
 function sanitizeActionHistory(
   actionHistory: Partial<GameState>['actionHistory'],
 ): GameState['actionHistory'] {
@@ -190,11 +244,12 @@ function sanitizeActionHistory(
       if (typeof turn !== 'number' || !Number.isFinite(turn) || typeof actionId !== 'string') {
         return null;
       }
+      const normalizedActionId = normalizeDecisionId(actionId);
       const target = (entry as { target?: unknown }).target;
       const magnitude = (entry as { magnitude?: unknown }).magnitude;
       return {
         turn: Math.max(0, Math.floor(turn)),
-        actionId,
+        actionId: normalizedActionId,
         ...(typeof target === 'string' ? { target } : {}),
         ...(typeof magnitude === 'number' && Number.isFinite(magnitude) ? { magnitude } : {}),
       };
@@ -265,7 +320,7 @@ function migratePortfolio(rawPortfolio: LegacyPortfolio | undefined, fallback: P
 
 interface GameActions {
   newGame: (scenarioId?: Parameters<typeof createNewGame>[1]) => void;
-  queueDecision: (decisionId: string) => void;
+  queueDecision: (decisionId: string, input?: DecisionExecutionInput) => void;
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
   dismissSummary: () => void;
@@ -295,33 +350,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  queueDecision: (decisionId: string) => {
+  queueDecision: (decisionId: string, input?: DecisionExecutionInput) => {
     const state = get();
-    const dec = decisions.find((d) => d.id === decisionId);
+    const normalizedDecisionId = normalizeDecisionId(decisionId);
+    const dec = decisions.find((d) => d.id === normalizedDecisionId);
     if (!dec) return;
-    if (state.pendingDecisions.includes(decisionId)) return;
+    if (state.pendingDecisions.includes(normalizedDecisionId)) return;
     if (dec.unlockTurn !== undefined && state.turn < dec.unlockTurn) return;
     if (dec.cost > state.portfolio.cashAvailable) return;
+    const sanitizedInput = sanitizeDecisionInput(input);
     const nextPortfolio = normalizeCashBuckets({
       ...state.portfolio,
       cashTotal: state.portfolio.cashTotal - dec.cost,
     });
     set({
-      pendingDecisions: [...state.pendingDecisions, decisionId],
+      pendingDecisions: [...state.pendingDecisions, normalizedDecisionId],
+      pendingDecisionParams: sanitizedInput
+        ? { ...state.pendingDecisionParams, [normalizedDecisionId]: sanitizedInput }
+        : state.pendingDecisionParams,
       portfolio: nextPortfolio,
     });
   },
 
   removeDecision: (decisionId: string) => {
     const state = get();
-    const dec = decisions.find((d) => d.id === decisionId);
+    const normalizedDecisionId = normalizeDecisionId(decisionId);
+    const dec = decisions.find((d) => d.id === normalizedDecisionId);
     if (!dec) return;
     const nextPortfolio = normalizeCashBuckets({
       ...state.portfolio,
       cashTotal: state.portfolio.cashTotal + dec.cost,
     });
     set({
-      pendingDecisions: state.pendingDecisions.filter((id) => id !== decisionId),
+      pendingDecisions: state.pendingDecisions.filter((id) => id !== normalizedDecisionId),
+      pendingDecisionParams: Object.fromEntries(
+        Object.entries(state.pendingDecisionParams).filter(([id]) => id !== normalizedDecisionId),
+      ),
       portfolio: nextPortfolio,
     });
   },
@@ -349,6 +413,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnSummary: state.lastTurnSummary,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
+      pendingDecisionParams: state.pendingDecisionParams,
       phase: state.phase,
       seed: state.seed,
       score: state.score,
@@ -430,6 +495,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastTurnSummary: s.lastTurnSummary,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
+      pendingDecisionParams: s.pendingDecisionParams,
       phase: s.phase,
       seed: s.seed,
       score: s.score,
@@ -444,15 +510,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     try {
       const data = JSON.parse(raw) as LoadedSave;
       const base = createNewGame();
+      const pendingDecisions = sanitizePendingDecisions(data.pendingDecisions);
       set({
         ...base,
         ...data,
         portfolio: migratePortfolio(data.portfolio, base.portfolio),
-        pendingDecisions: Array.isArray(data.pendingDecisions)
-          ? data.pendingDecisions.filter(
-            (id): id is string => typeof id === 'string' && decisions.some((decision) => decision.id === id),
-          )
-          : [],
+        pendingDecisions,
+        pendingDecisionParams: sanitizePendingDecisionParams(data.pendingDecisionParams, pendingDecisions),
         reputation: typeof data.reputation === 'number' ? data.reputation : DEFAULT_REPUTATION,
         winTargetAum: typeof data.winTargetAum === 'number' ? data.winTargetAum : 120,
         maxTurns: typeof data.maxTurns === 'number' ? data.maxTurns : 20,

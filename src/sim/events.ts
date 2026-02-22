@@ -1,4 +1,5 @@
 import type { GameEvent, GameState, CountryState } from './types';
+import { SELL_BONDS_DECISION_ID } from './decisionIds';
 
 function updateCountry(
   state: GameState,
@@ -115,8 +116,8 @@ export const events: GameEvent[] = [
     useLastActionLead: true,
     attributionRules: [
       {
-        decisionId: 'sell_sovereign_bonds',
-        text: 'After your bond sell-off, Brazil funding stress intensified.',
+        decisionId: SELL_BONDS_DECISION_ID,
+        text: 'Your sovereign bond selling amplified Brazil funding stress.',
       },
       {
         decisionId: 'short_currency',
@@ -254,8 +255,8 @@ export const events: GameEvent[] = [
     useLastActionLead: true,
     attributionRules: [
       {
-        decisionId: 'sell_sovereign_bonds',
-        text: 'After your bond sell-off, spreads widened faster.',
+        decisionId: SELL_BONDS_DECISION_ID,
+        text: 'Your bond selling helped accelerate that pressure.',
       },
       {
         decisionId: 'short_currency',
@@ -299,7 +300,7 @@ export const events: GameEvent[] = [
     useLastActionLead: true,
     attributionRules: [
       {
-        decisionId: 'sell_sovereign_bonds',
+        decisionId: SELL_BONDS_DECISION_ID,
         text: 'Your bond sell-off reinforced the outflow impulse.',
       },
       {

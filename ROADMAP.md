@@ -238,7 +238,7 @@ These are features the roadmap marks as essential to MVP that the boilerplate do
 | **Lobby/PR + Provide Liquidity decisions** | MVP #2 | **P1** | The roadmap specifies these as 2 of the 10 core decisions. The boilerplate replaces them with a second bond buy and a "liquidate all" button. Lobby/PR interacts with Reputation; Provide Liquidity interacts with country stability. Both are needed for meaningful tradeoffs. |
 | **Personalized event text** | MVP #5 | **P1** | Events should reference player actions: "Your bond sell-off contributed to Brazil's credit downgrade." Current events are generic wire-service headlines. This is how the game creates "I caused that" moments. |
 | **Win condition** | MVP #7 | **P1** | Only a loss condition exists (AUM < $20B). The roadmap specifies: survive 20 turns with portfolio above target. Without a win state, there's no goal to play toward. |
-| **Sell Sovereign Bonds decision** | MVP #2 | **P2** | You can buy bonds but can't sell them (only "liquidate all"). Selling bonds in a fragile country should destabilize it — a core moral-tension mechanic. |
+| **Sell Sovereign Bonds decision** | MVP #2 | **Closed (P1 core)** | Implemented as targetable `SELL_BONDS` with `targetCountry` + `amount`, capped per-turn impact on rates/stability, reputation downside, and action-history attribution. |
 
 ### Design note: real vs. fictional countries
 

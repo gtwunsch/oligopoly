@@ -1,7 +1,9 @@
 import type { Decision, GameEvent, GameState } from './types';
+import { SELL_BONDS_DECISION_ID } from './decisionIds';
 
 const actionLeadByDecisionId: Record<string, string> = {
   buy_sovereign_bonds: 'After your bond build-up',
+  [SELL_BONDS_DECISION_ID]: 'After your bond sell-off',
   sell_sovereign_bonds: 'After your bond sell-off',
   buy_equities: 'After your equity build-up',
   short_currency: 'After your FX short expansion',
