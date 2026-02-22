@@ -8,7 +8,7 @@ const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 
 interface GameActions {
-  newGame: (scenarioId?: string) => void;
+  newGame: (scenarioId?: Parameters<typeof createNewGame>[1]) => void;
   queueDecision: (decisionId: string) => void;
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
