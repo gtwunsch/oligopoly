@@ -190,8 +190,11 @@ function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): 
     if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
       return rule.text;
     }
-    if (rule.decisionTag && executedDecisions.some((decision) => decision.tags.includes(rule.decisionTag))) {
-      return rule.text;
+    if (rule.decisionTag) {
+      const tag = rule.decisionTag;
+      if (executedDecisions.some((decision) => decision.tags.includes(tag))) {
+        return rule.text;
+      }
     }
   }
   return null;
