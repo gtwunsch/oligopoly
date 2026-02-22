@@ -168,6 +168,13 @@ Actions and events should push/pull these meters. Crossing thresholds triggers e
 - `GameState.actionHistory` stores recent actions as `{ turn, actionId, target?, magnitude? }` with a short rolling window (currently 5 turns) for event attribution and future UX copy.
 - `GameState.lastTurnSummary` exposes a minimal UI-ready shape: `{ turn, deltas: { reputationDelta, riskDelta, aumDelta, liquidityDelta }, why }`.
 
+### Cash buckets (capital usability)
+- Track cash with three fields: `cashTotal`, `cashAvailable`, and `cashLocked`.
+- `cashLocked` should come from simple, visible drivers: base liquidity reserve + leverage margin + concentration buffer.
+- `Leverage up` increases locked cash; concentrated books increase locked cash.
+- `Reduce leverage` must release locked cash **gradually across turns** (not all at once).
+- UI should show the three cash numbers and a short tooltip explaining why cash is locked.
+
 ### Balance philosophy
 - Aim for *interesting* balance, not perfect balance. Asymmetry is fine if the tradeoff is clear.
 - Tune iteratively using the dev panel and seed replay, not by theorycrafting alone.

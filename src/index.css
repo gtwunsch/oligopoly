@@ -130,6 +130,32 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .kpi-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
 .kpi-value { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi-cash {
+  align-items: flex-start;
+  min-width: 160px;
+}
+.kpi-cash .kpi-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.kpi-subvalue {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.kpi-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  cursor: help;
+}
 
 /* ── Tutorial tip ── */
 .tutorial-tip {
