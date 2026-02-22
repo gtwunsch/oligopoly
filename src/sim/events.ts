@@ -1,4 +1,5 @@
 import type { GameEvent, GameState, CountryState } from './types';
+import { SELL_BONDS_DECISION_ID } from './decisionIds';
 
 function updateCountry(
   state: GameState,
@@ -90,7 +91,7 @@ export const events: GameEvent[] = [
     causalHint: 'Stability down -> currency selloff deepens -> contagion fears rise',
     attributionRules: [
       {
-        decisionId: 'sell_sovereign_bonds',
+        decisionId: SELL_BONDS_DECISION_ID,
         text: 'Your sovereign bond selling amplified Brazil funding stress.',
       },
       {
@@ -197,7 +198,7 @@ export const events: GameEvent[] = [
     causalHint: 'Stability slips -> funding stress builds -> crisis odds rise',
     attributionRules: [
       {
-        decisionId: 'sell_sovereign_bonds',
+        decisionId: SELL_BONDS_DECISION_ID,
         text: 'Your bond selling helped accelerate that pressure.',
       },
       {

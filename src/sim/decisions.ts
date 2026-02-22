@@ -1,6 +1,32 @@
-import type { Decision, GameState, PortfolioAllocation } from './types';
+import { SELL_BONDS_DECISION_ID } from './decisionIds';
+import type { Decision, DecisionExecutionInput, GameState, PortfolioAllocation } from './types';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+const DEFAULT_SELL_BONDS_TARGET = 'br';
+const DEFAULT_SELL_BONDS_AMOUNT = 0.05;
+const MIN_SELL_BONDS_AMOUNT = 0.01;
+const MAX_SELL_BONDS_AMOUNT = 0.08;
+const FRAGILE_STABILITY_THRESHOLD = 60;
+
+const INTEREST_RATE_SHOCK_PER_WEIGHT = 4;
+const MAX_INTEREST_RATE_SHOCK = 0.6;
+const BASE_STABILITY_HIT = 1;
+const STABILITY_HIT_PER_WEIGHT = 40;
+const MAX_STABILITY_HIT = 7;
+const BASE_SENTIMENT_HIT = 2;
+const SENTIMENT_HIT_PER_WEIGHT = 55;
+const MAX_SENTIMENT_HIT = 10;
+
+export interface SellBondsExecutionContext {
+  targetCountry: string;
+  requestedAmount: number;
+  soldAmount: number;
+  interestRateShock: number;
+  stabilityHit: number;
+  sentimentHit: number;
+  isFragile: boolean;
+}
 
 function addAllocation(
   state: GameState,
@@ -45,6 +71,77 @@ function reduceAllocation(
   return { portfolio: p, soldWeight };
 }
 
+function resolveTargetCountry(state: GameState, requestedTarget?: string): string {
+  if (requestedTarget && state.countries.some((country) => country.id === requestedTarget)) {
+    return requestedTarget;
+  }
+  if (state.countries.some((country) => country.id === DEFAULT_SELL_BONDS_TARGET)) {
+    return DEFAULT_SELL_BONDS_TARGET;
+  }
+  return state.countries[0]?.id ?? DEFAULT_SELL_BONDS_TARGET;
+}
+
+function sanitizeSellAmount(amount?: number): number {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+    return DEFAULT_SELL_BONDS_AMOUNT;
+  }
+  return clamp(amount, MIN_SELL_BONDS_AMOUNT, MAX_SELL_BONDS_AMOUNT);
+}
+
+function getSovereignBondWeight(state: GameState, countryId: string): number {
+  return state.portfolio.allocations.find(
+    (allocation) => allocation.countryId === countryId && allocation.asset === 'sovereign_bonds',
+  )?.weight ?? 0;
+}
+
+function computeSellBondsShocks(soldAmount: number, isFragile: boolean) {
+  if (soldAmount <= 0) {
+    return {
+      interestRateShock: 0,
+      stabilityHit: 0,
+      sentimentHit: 0,
+    };
+  }
+
+  const fragilityMultiplier = isFragile ? 1.35 : 1;
+  return {
+    interestRateShock: clamp(soldAmount * INTEREST_RATE_SHOCK_PER_WEIGHT, 0, MAX_INTEREST_RATE_SHOCK),
+    stabilityHit: clamp(
+      (BASE_STABILITY_HIT + soldAmount * STABILITY_HIT_PER_WEIGHT) * fragilityMultiplier,
+      0,
+      MAX_STABILITY_HIT,
+    ),
+    sentimentHit: clamp(
+      (BASE_SENTIMENT_HIT + soldAmount * SENTIMENT_HIT_PER_WEIGHT) * fragilityMultiplier,
+      0,
+      MAX_SENTIMENT_HIT,
+    ),
+  };
+}
+
+export function resolveSellBondsExecution(
+  state: GameState,
+  input?: DecisionExecutionInput,
+): SellBondsExecutionContext {
+  const targetCountry = resolveTargetCountry(state, input?.targetCountry);
+  const requestedAmount = sanitizeSellAmount(input?.amount);
+  const currentBondWeight = getSovereignBondWeight(state, targetCountry);
+  const soldAmount = Math.min(requestedAmount, currentBondWeight);
+  const targetStability = state.countries.find((country) => country.id === targetCountry)?.stability ?? 100;
+  const isFragile = targetStability < FRAGILE_STABILITY_THRESHOLD;
+  const { interestRateShock, stabilityHit, sentimentHit } = computeSellBondsShocks(soldAmount, isFragile);
+
+  return {
+    targetCountry,
+    requestedAmount,
+    soldAmount,
+    interestRateShock,
+    stabilityHit,
+    sentimentHit,
+    isFragile,
+  };
+}
+
 export const decisions: Decision[] = [
   {
     id: 'buy_sovereign_bonds',
@@ -58,28 +155,38 @@ export const decisions: Decision[] = [
     effect: (s) => addAllocation(s, 'br', 'sovereign_bonds', 0.05),
   },
   {
-    id: 'sell_sovereign_bonds',
+    id: SELL_BONDS_DECISION_ID,
     name: 'Sell Sovereign Bonds',
-    description: 'Benefit: raise cash fast. Cost: can destabilize fragile markets.',
+    description: 'Benefit: raise cash fast. Cost: destabilizes the target market and hits reputation.',
     cost: 0,
     tags: ['bonds', 'de-risk'],
     unlockTurn: 4,
-    reputationDelta: -2,
-    causalHint: 'Bond selling -> local rates up -> fragile country stability down',
-    effect: (s) => {
-      const { portfolio, soldWeight } = reduceAllocation(s, 'br', 'sovereign_bonds', 0.05);
+    causalHint: 'Bond selloff -> local rates up -> stability down -> political heat rises',
+    effect: (s, input) => {
+      const execution = resolveSellBondsExecution(s, input);
+      const { portfolio, soldWeight } = reduceAllocation(
+        s,
+        execution.targetCountry,
+        'sovereign_bonds',
+        execution.requestedAmount,
+      );
       if (soldWeight <= 0) {
         return { portfolio };
       }
+
+      const { interestRateShock, stabilityHit, sentimentHit } = computeSellBondsShocks(
+        soldWeight,
+        execution.isFragile,
+      );
       return {
         portfolio,
         countries: s.countries.map((c) =>
-          c.id === 'br'
+          c.id === execution.targetCountry
             ? {
                 ...c,
-                interestRate: clamp(c.interestRate + 0.2, 0, 20),
-                stability: clamp(c.stability - 3, 0, 100),
-                sentiment: clamp(c.sentiment - 5, -100, 100),
+                interestRate: clamp(c.interestRate + interestRateShock, 0, 20),
+                stability: clamp(c.stability - stabilityHit, 0, 100),
+                sentiment: clamp(c.sentiment - sentimentHit, -100, 100),
               }
             : c,
         ),

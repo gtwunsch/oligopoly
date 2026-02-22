@@ -1,6 +1,7 @@
 import type {
   ActionHistoryEntry,
   CountryState,
+  DecisionExecutionInput,
   Decision,
   GameEvent,
   GameState,
@@ -11,7 +12,8 @@ import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
 import { initialCountries } from './countries';
-import { decisions } from './decisions';
+import { decisions, resolveSellBondsExecution } from './decisions';
+import { normalizeDecisionId, SELL_BONDS_DECISION_ID } from './decisionIds';
 import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
 
 // ── Helpers ──
@@ -23,12 +25,25 @@ const BR_FRAGILE_STABILITY = 60;
 const BR_CRISIS_STABILITY = 50;
 const RECENT_ACTION_ATTRIBUTION_PREFIX = 'Recent actions set the stage:';
 
-function buildActionHistoryEntry(turn: number, decisionId: string): ActionHistoryEntry {
-  switch (decisionId) {
+function buildActionHistoryEntry(
+  turn: number,
+  decisionId: string,
+  stateBeforeDecision: GameState,
+  input?: DecisionExecutionInput,
+): ActionHistoryEntry {
+  const normalizedDecisionId = normalizeDecisionId(decisionId);
+  switch (normalizedDecisionId) {
     case 'buy_sovereign_bonds':
       return { turn, actionId: decisionId, target: 'br', magnitude: 0.05 };
-    case 'sell_sovereign_bonds':
-      return { turn, actionId: decisionId, target: 'br', magnitude: -0.05 };
+    case SELL_BONDS_DECISION_ID: {
+      const execution = resolveSellBondsExecution(stateBeforeDecision, input);
+      return {
+        turn,
+        actionId: SELL_BONDS_DECISION_ID,
+        target: execution.targetCountry,
+        magnitude: roundTo2(execution.soldAmount),
+      };
+    }
     case 'short_currency':
       return { turn, actionId: decisionId, target: 'br', magnitude: 0.04 };
     case 'provide_liquidity':
@@ -44,18 +59,27 @@ function buildActionHistoryEntry(turn: number, decisionId: string): ActionHistor
   }
 }
 
-function computeActionReputationDelta(decision: Decision, stateBeforeDecision: GameState): number {
+function computeActionReputationDelta(
+  decision: Decision,
+  stateBeforeDecision: GameState,
+  input?: DecisionExecutionInput,
+): number {
   const brStability = stateBeforeDecision.countries.find((country) => country.id === 'br')?.stability ?? 100;
   const isFragile = brStability < BR_FRAGILE_STABILITY;
   const isCrisis = brStability < BR_CRISIS_STABILITY;
 
-  switch (decision.id) {
+  switch (normalizeDecisionId(decision.id)) {
+    case SELL_BONDS_DECISION_ID: {
+      const execution = resolveSellBondsExecution(stateBeforeDecision, input);
+      if (execution.soldAmount <= 0) return 0;
+      const amountPenalty = Math.round(execution.soldAmount * 30);
+      const fragilityPenalty = execution.isFragile ? 2 : 0;
+      return -clamp(1 + amountPenalty + fragilityPenalty, 1, 6);
+    }
     case 'short_currency':
       return -2;
     case 'raise_leverage':
       return -1;
-    case 'sell_sovereign_bonds':
-      return isFragile ? -2 : 0;
     case 'provide_liquidity':
       return isCrisis ? 2 : 1;
     case 'reduce_leverage':
@@ -109,6 +133,7 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
     },
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
+    pendingDecisionParams: {},
     phase: 'playing',
     seed: s,
     score: 0,
@@ -295,7 +320,7 @@ function buildAttributionText(
   const executedDecisionTags = new Set(executedDecisions.flatMap((decision) => decision.tags));
   const actionHistoryDecisionTags = new Set(
     actionHistory
-      .map((entry) => decisions.find((decision) => decision.id === entry.actionId))
+      .map((entry) => decisions.find((decision) => decision.id === normalizeDecisionId(entry.actionId)))
       .filter((decision): decision is Decision => decision !== undefined)
       .flatMap((decision) => decision.tags),
   );
@@ -310,7 +335,7 @@ function buildAttributionText(
         return rule.text;
       }
     }
-    if (rule.decisionId && actionHistory.some((entry) => entry.actionId === rule.decisionId)) {
+    if (rule.decisionId && actionHistory.some((entry) => normalizeDecisionId(entry.actionId) === rule.decisionId)) {
       return `${RECENT_ACTION_ATTRIBUTION_PREFIX} ${rule.text}`;
     }
     if (rule.decisionTag && actionHistoryDecisionTags.has(rule.decisionTag)) {
@@ -338,12 +363,21 @@ export function advanceTurn(state: GameState): GameState {
   next.worldFlags = decayWorldFlags(next.worldFlags);
 
   // 1. Apply queued decisions
-  for (const dId of next.pendingDecisions) {
-    const dec = decisions.find((d) => d.id === dId);
+  for (const queuedDecisionId of next.pendingDecisions) {
+    const decisionId = normalizeDecisionId(queuedDecisionId);
+    const dec = decisions.find((d) => d.id === decisionId);
     if (!dec) continue;
-    const decisionReputationDelta = computeActionReputationDelta(dec, next);
+    const decisionInput = next.pendingDecisionParams[decisionId] ?? next.pendingDecisionParams[queuedDecisionId];
+    const stateBeforeDecision = structuredClone(next);
+    const decisionReputationDelta = computeActionReputationDelta(dec, stateBeforeDecision, decisionInput);
+    const actionHistoryEntry = buildActionHistoryEntry(
+      next.turn + 1,
+      dec.id,
+      stateBeforeDecision,
+      decisionInput,
+    );
 
-    const patch = dec.effect(next);
+    const patch = dec.effect(next, decisionInput);
     Object.assign(next, patch);
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
     if (patch.countries) next.countries = patch.countries;
@@ -360,10 +394,14 @@ export function advanceTurn(state: GameState): GameState {
       turnCausalHints.push(dec.causalHint);
     }
     executedDecisions.push(dec);
-    turnActionHistory.push(buildActionHistoryEntry(next.turn + 1, dec.id));
-    newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
+    turnActionHistory.push(actionHistoryEntry);
+    const executedText = actionHistoryEntry.actionId === SELL_BONDS_DECISION_ID
+      ? `Executed: ${dec.name} (${actionHistoryEntry.target ?? 'n/a'}, ${roundTo2((actionHistoryEntry.magnitude ?? 0) * 100)}%)`
+      : `Executed: ${dec.name}`;
+    newLog.push({ turn: next.turn + 1, text: executedText, type: 'action' });
   }
   next.pendingDecisions = [];
+  next.pendingDecisionParams = {};
 
   // 2. Tick countries
   const prevCountries = structuredClone(next.countries);
