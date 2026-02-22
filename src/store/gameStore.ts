@@ -1,11 +1,49 @@
 import { create } from 'zustand';
-import type { GameState } from '../sim/types';
-import { createNewGame, advanceTurn, decisions } from '../sim';
+import type { GameState, Portfolio } from '../sim/types';
+import {
+  createNewGame,
+  advanceTurn,
+  decisions,
+  normalizeCashBuckets,
+  rebalanceCashBuckets,
+} from '../sim';
 
 const SAVE_KEY = 'macro-sim-save';
+const SAVE_VERSION = 2;
 const DEFAULT_REPUTATION = 70;
 const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
+
+type LegacyPortfolio = Partial<Portfolio> & { cash?: number };
+type PersistedGameState = GameState & { saveVersion: number };
+type LoadedSave = Partial<GameState> & { saveVersion?: number; portfolio?: LegacyPortfolio };
+
+function migratePortfolio(rawPortfolio: LegacyPortfolio | undefined, fallback: Portfolio): Portfolio {
+  if (!rawPortfolio || typeof rawPortfolio !== 'object') {
+    return fallback;
+  }
+
+  const { cash: legacyCash, ...portfolioPatch } = rawPortfolio;
+  const cashTotal = typeof rawPortfolio.cashTotal === 'number'
+    ? rawPortfolio.cashTotal
+    : typeof legacyCash === 'number'
+      ? legacyCash
+      : fallback.cashTotal;
+  const cashLocked = typeof rawPortfolio.cashLocked === 'number' ? rawPortfolio.cashLocked : 0;
+  const cashAvailable = typeof rawPortfolio.cashAvailable === 'number'
+    ? rawPortfolio.cashAvailable
+    : cashTotal - cashLocked;
+
+  const merged: Portfolio = {
+    ...fallback,
+    ...portfolioPatch,
+    cashTotal,
+    cashLocked,
+    cashAvailable,
+  };
+
+  return rebalanceCashBuckets(normalizeCashBuckets(merged));
+}
 
 interface GameActions {
   newGame: (scenarioId?: Parameters<typeof createNewGame>[1]) => void;
@@ -35,13 +73,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!dec) return;
     if (state.pendingDecisions.includes(decisionId)) return;
     if (dec.unlockTurn !== undefined && state.turn < dec.unlockTurn) return;
-    if (dec.cost > state.portfolio.cash) return;
+    if (dec.cost > state.portfolio.cashAvailable) return;
+    const nextPortfolio = normalizeCashBuckets({
+      ...state.portfolio,
+      cashTotal: state.portfolio.cashTotal - dec.cost,
+    });
     set({
       pendingDecisions: [...state.pendingDecisions, decisionId],
-      portfolio: {
-        ...state.portfolio,
-        cash: state.portfolio.cash - dec.cost,
-      },
+      portfolio: nextPortfolio,
     });
   },
 
@@ -49,12 +88,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const dec = decisions.find((d) => d.id === decisionId);
     if (!dec) return;
+    const nextPortfolio = normalizeCashBuckets({
+      ...state.portfolio,
+      cashTotal: state.portfolio.cashTotal + dec.cost,
+    });
     set({
       pendingDecisions: state.pendingDecisions.filter((id) => id !== decisionId),
-      portfolio: {
-        ...state.portfolio,
-        cash: state.portfolio.cash + dec.cost,
-      },
+      portfolio: nextPortfolio,
     });
   },
 
@@ -91,7 +131,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   save: () => {
     const s = get();
-    const data: GameState = {
+    const data: PersistedGameState = {
       turn: s.turn,
       year: s.year,
       quarter: s.quarter,
@@ -112,6 +152,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       phase: s.phase,
       seed: s.seed,
       score: s.score,
+      saveVersion: SAVE_VERSION,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   },
@@ -120,10 +161,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     try {
-      const data = JSON.parse(raw) as Partial<GameState>;
+      const data = JSON.parse(raw) as LoadedSave;
+      const base = createNewGame();
       set({
-        ...createNewGame(),
+        ...base,
         ...data,
+        portfolio: migratePortfolio(data.portfolio, base.portfolio),
         pendingDecisions: Array.isArray(data.pendingDecisions)
           ? data.pendingDecisions.filter(
             (id): id is string => typeof id === 'string' && decisions.some((decision) => decision.id === id),

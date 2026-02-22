@@ -32,7 +32,9 @@ export type AssetClass =
 
 export interface Portfolio {
   aum: number;              // assets under management ($B)
-  cash: number;             // unallocated ($B)
+  cashTotal: number;        // total cash balance ($B)
+  cashAvailable: number;    // usable cash after locks ($B)
+  cashLocked: number;       // locked as collateral/reserve ($B)
   leverage: number;         // 1x–5x
   allocations: PortfolioAllocation[];
   pnlHistory: number[];    // cumulative PnL each turn

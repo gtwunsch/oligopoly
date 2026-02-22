@@ -5,6 +5,7 @@ import { events } from './events';
 import { initialCountries } from './countries';
 import { decisions } from './decisions';
 import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
+import { rebalanceCashBuckets } from './cash';
 
 // ── Helpers ──
 
@@ -15,6 +16,18 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): GameState {
   const s = seed ?? Date.now();
   const scenario = getScenarioById(scenarioId);
+  const portfolio = rebalanceCashBuckets({
+    aum: 100,
+    cashTotal: 100,
+    cashAvailable: 100,
+    cashLocked: 0,
+    leverage: 1,
+    allocations: [],
+    pnlHistory: [0],
+    riskScore: 0,
+    liquidity: 100,
+  });
+
   return {
     turn: 0,
     year: 2025,
@@ -24,15 +37,7 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
     countries: applyScenarioCountries(structuredClone(initialCountries), scenario),
     eventWeightBias: { ...scenario.eventWeightBias },
     worldFlags: {},
-    portfolio: {
-      aum: 100,
-      cash: 100,
-      leverage: 1,
-      allocations: [],
-      pnlHistory: [0],
-      riskScore: 0,
-      liquidity: 100,
-    },
+    portfolio,
     reputation: scenario.startingReputation ?? 70,
     winTargetAum: 120,
     maxTurns: 20,
@@ -186,7 +191,7 @@ function computeRisk(portfolio: Portfolio, countries: CountryState[]): number {
 }
 
 function computeLiquidity(portfolio: Portfolio): number {
-  const cashRatio = portfolio.cash / Math.max(1, portfolio.aum);
+  const cashRatio = portfolio.cashAvailable / Math.max(1, portfolio.aum);
   return clamp(Math.round(cashRatio * 100 + (1 / portfolio.leverage) * 20), 0, 100);
 }
 
@@ -310,8 +315,9 @@ export function advanceTurn(state: GameState): GameState {
   // 4. PnL
   const pnl = computePortfolioPnl(next.portfolio, prevCountries, next.countries);
   next.portfolio.aum += pnl;
-  next.portfolio.cash = Math.max(0, next.portfolio.cash + pnl * 0.2);
+  next.portfolio.cashTotal = Math.max(0, next.portfolio.cashTotal + pnl * 0.2);
   next.portfolio.pnlHistory = [...next.portfolio.pnlHistory, pnl];
+  next.portfolio = rebalanceCashBuckets(next.portfolio);
 
   const pnlSign = pnl >= 0 ? '+' : '';
   newLog.push({

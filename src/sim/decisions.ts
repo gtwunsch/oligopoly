@@ -1,4 +1,5 @@
 import type { Decision, GameState, PortfolioAllocation } from './types';
+import { normalizeCashBuckets } from './cash';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -19,8 +20,8 @@ function addAllocation(
   } else {
     p.allocations = [...p.allocations, { countryId, asset, weight }];
   }
-  p.cash -= weight * p.aum;
-  return { portfolio: p };
+  p.cashTotal -= weight * p.aum;
+  return { portfolio: normalizeCashBuckets(p) };
 }
 
 function reduceAllocation(
@@ -41,8 +42,8 @@ function reduceAllocation(
   const soldWeight = Math.min(weight, existing.weight);
   existing.weight = Math.max(0, existing.weight - soldWeight);
   p.allocations = p.allocations.filter((a) => a.weight > 0.0001);
-  p.cash += soldWeight * p.aum;
-  return { portfolio: p, soldWeight };
+  p.cashTotal += soldWeight * p.aum;
+  return { portfolio: normalizeCashBuckets(p), soldWeight };
 }
 
 export const decisions: Decision[] = [
