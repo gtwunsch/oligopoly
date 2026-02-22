@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/gameStore';
+import { computeCashLockDrivers } from '../sim';
 
 function fmt(n: number, decimals = 1): string {
   return n.toFixed(decimals);
@@ -7,6 +8,15 @@ function fmt(n: number, decimals = 1): string {
 export function KPIBar() {
   const { year, quarter, turn, scenarioName, portfolio, reputation, winTargetAum, maxTurns, score } = useGameStore();
   const turnsLeft = Math.max(0, maxTurns - turn);
+  const cashLock = computeCashLockDrivers(portfolio);
+  const cashTooltip = [
+    'Why locked:',
+    'Locked = liquidity reserve + leverage margin + concentration buffer.',
+    `Reserve: $${fmt(cashLock.liquidityReserve)}B`,
+    `Leverage margin: $${fmt(cashLock.leverageMargin)}B`,
+    `Concentration buffer: $${fmt(cashLock.concentrationBuffer)}B`,
+    'Lower leverage releases locked cash gradually over turns.',
+  ].join('\n');
 
   return (
     <header className="kpi-bar">
@@ -30,9 +40,16 @@ export function KPIBar() {
         <span className="kpi-label">AUM</span>
         <span className="kpi-value">${fmt(portfolio.aum)}B</span>
       </div>
-      <div className="kpi">
-        <span className="kpi-label">Cash</span>
-        <span className="kpi-value">${fmt(portfolio.cash)}B</span>
+      <div className="kpi kpi-cash" title={cashTooltip}>
+        <span className="kpi-label">
+          Cash
+          <span className="kpi-help" aria-label="Why cash is locked" title={cashTooltip}>
+            ?
+          </span>
+        </span>
+        <span className="kpi-subvalue">Total ${fmt(portfolio.cashTotal)}B</span>
+        <span className="kpi-subvalue text-safe">Available ${fmt(portfolio.cashAvailable)}B</span>
+        <span className="kpi-subvalue text-warn">Locked ${fmt(portfolio.cashLocked)}B</span>
       </div>
       <div className="kpi">
         <span className="kpi-label">Leverage</span>

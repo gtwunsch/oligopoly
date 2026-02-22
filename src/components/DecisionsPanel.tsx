@@ -13,7 +13,7 @@ export function DecisionsPanel() {
         {decisions.map((d) => {
           const queued = pendingDecisions.includes(d.id);
           const locked = d.unlockTurn !== undefined && turn < d.unlockTurn;
-          const cantAfford = !queued && d.cost > portfolio.cash;
+          const cantAfford = !queued && d.cost > portfolio.cashAvailable;
           const title = locked
             ? `${d.description} Unlocks at turn ${d.unlockTurn}.`
             : d.description;
