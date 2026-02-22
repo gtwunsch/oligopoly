@@ -4,6 +4,7 @@ import type { Rng } from './rng';
 import { events } from './events';
 import { initialCountries } from './countries';
 import { decisions } from './decisions';
+import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
 
 // ── Helpers ──
 
@@ -11,13 +12,17 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 
 // ── New game factory ──
 
-export function createNewGame(seed?: number): GameState {
+export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): GameState {
   const s = seed ?? Date.now();
+  const scenario = getScenarioById(scenarioId);
   return {
     turn: 0,
     year: 2025,
     quarter: 1,
-    countries: structuredClone(initialCountries),
+    scenarioId: scenario.id,
+    scenarioName: scenario.name,
+    countries: applyScenarioCountries(structuredClone(initialCountries), scenario),
+    eventWeightBias: { ...scenario.eventWeightBias },
     portfolio: {
       aum: 100,
       cash: 100,
@@ -27,7 +32,7 @@ export function createNewGame(seed?: number): GameState {
       riskScore: 0,
       liquidity: 100,
     },
-    reputation: 70,
+    reputation: scenario.startingReputation ?? 70,
     winTargetAum: 120,
     maxTurns: 20,
     outcome: 'ongoing',
@@ -241,7 +246,13 @@ export function advanceTurn(state: GameState): GameState {
 
   // 3. Fire 1-2 random events
   const numEvents = rng.next() > 0.5 ? 2 : 1;
-  const eligible = events.filter((e) => !e.trigger || e.trigger(next));
+  const eligible = events
+    .filter((e) => !e.trigger || e.trigger(next))
+    .map((event) => ({
+      ...event,
+      weight: event.weight * (next.eventWeightBias[event.id] ?? 1),
+    }))
+    .filter((event) => event.weight > 0);
   for (let i = 0; i < numEvents && eligible.length > 0; i++) {
     const ev = rng.weightedPick(eligible);
     const patch = ev.effect(next);

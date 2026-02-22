@@ -78,7 +78,10 @@ export interface GameState {
   turn: number;
   year: number;
   quarter: number;          // 1-4
+  scenarioId: string;
+  scenarioName: string;
   countries: CountryState[];
+  eventWeightBias: Record<string, number>;
   portfolio: Portfolio;
   reputation: number;       // 0-100
   winTargetAum: number;

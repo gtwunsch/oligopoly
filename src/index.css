@@ -61,7 +61,7 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .start-card {
   text-align: center;
-  max-width: 440px;
+  max-width: 640px;
   padding: 48px 36px;
 }
 .start-card h1 {
@@ -74,6 +74,41 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .start-card .subtitle { font-size: 1.1rem; color: var(--text-dim); margin: 4px 0 20px; }
 .start-card .flavor { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 28px; line-height: 1.6; }
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.scenario-btn {
+  text-align: left;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-hover);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.scenario-btn:hover {
+  border-color: var(--accent);
+}
+.scenario-btn.selected {
+  border-color: var(--accent-light);
+  background: #20304a;
+}
+.scenario-name {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+.scenario-desc {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
 .start-buttons { display: flex; gap: 12px; justify-content: center; margin-bottom: 20px; }
 .start-card .hint { font-size: 0.75rem; color: var(--text-dim); }
 
@@ -354,4 +389,5 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   .dashboard-grid { grid-template-columns: 1fr; }
   .bottom-panels { grid-template-columns: 1fr; }
   .countries-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .scenario-grid { grid-template-columns: 1fr; }
 }

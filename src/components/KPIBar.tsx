@@ -5,7 +5,7 @@ function fmt(n: number, decimals = 1): string {
 }
 
 export function KPIBar() {
-  const { year, quarter, turn, portfolio, reputation, winTargetAum, maxTurns, score } = useGameStore();
+  const { year, quarter, turn, scenarioName, portfolio, reputation, winTargetAum, maxTurns, score } = useGameStore();
   const turnsLeft = Math.max(0, maxTurns - turn);
 
   return (
@@ -15,6 +15,10 @@ export function KPIBar() {
         <span className="kpi-value">
           {year} Q{quarter}
         </span>
+      </div>
+      <div className="kpi">
+        <span className="kpi-label">Scenario</span>
+        <span className="kpi-value">{scenarioName}</span>
       </div>
       <div className="kpi">
         <span className="kpi-label">Turn</span>

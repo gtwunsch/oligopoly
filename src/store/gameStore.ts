@@ -8,7 +8,7 @@ const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 
 interface GameActions {
-  newGame: () => void;
+  newGame: (scenarioId?: string) => void;
   queueDecision: (decisionId: string) => void;
   removeDecision: (decisionId: string) => void;
   endTurn: () => void;
@@ -24,8 +24,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...createNewGame(),
   phase: 'start',
 
-  newGame: () => {
-    const g = createNewGame();
+  newGame: (scenarioId) => {
+    const g = createNewGame(undefined, scenarioId);
     set(g);
   },
 
@@ -65,7 +65,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turn: state.turn,
       year: state.year,
       quarter: state.quarter,
+      scenarioId: state.scenarioId,
+      scenarioName: state.scenarioName,
       countries: state.countries,
+      eventWeightBias: state.eventWeightBias,
       portfolio: state.portfolio,
       reputation: state.reputation,
       winTargetAum: state.winTargetAum,
@@ -91,7 +94,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
       turn: s.turn,
       year: s.year,
       quarter: s.quarter,
+      scenarioId: s.scenarioId,
+      scenarioName: s.scenarioName,
       countries: s.countries,
+      eventWeightBias: s.eventWeightBias,
       portfolio: s.portfolio,
       reputation: s.reputation,
       winTargetAum: s.winTargetAum,
@@ -125,6 +131,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
         winTargetAum: typeof data.winTargetAum === 'number' ? data.winTargetAum : 120,
         maxTurns: typeof data.maxTurns === 'number' ? data.maxTurns : 20,
         outcome: data.outcome === 'win' || data.outcome === 'loss' ? data.outcome : 'ongoing',
+        scenarioId: typeof data.scenarioId === 'string' ? data.scenarioId : 'calm_markets',
+        scenarioName: typeof data.scenarioName === 'string' ? data.scenarioName : 'Calm Markets',
+        eventWeightBias: data.eventWeightBias && typeof data.eventWeightBias === 'object'
+          ? Object.fromEntries(
+            Object.entries(data.eventWeightBias)
+              .filter(([, value]) => typeof value === 'number')
+              .map(([key, value]) => [key, value as number]),
+          )
+          : {},
         lastTurnCausalHints: Array.isArray(data.lastTurnCausalHints)
           ? data.lastTurnCausalHints.filter((hint): hint is string => typeof hint === 'string')
           : DEFAULT_CAUSAL_HINTS,
