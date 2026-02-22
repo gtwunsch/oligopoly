@@ -53,7 +53,7 @@ export function PortfolioPanel() {
           <BarChart data={allocData} layout="vertical" margin={{ left: 10, right: 10 }}>
             <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
             <YAxis type="category" dataKey="name" width={60} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v: number) => `${v}%`} />
+            <Tooltip formatter={(value) => `${value ?? 0}%`} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]}>
               {allocData.map((d, i) => (
                 <Cell key={i} fill={d.color} />
