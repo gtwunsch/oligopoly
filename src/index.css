@@ -216,6 +216,13 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .decision-btn.locked { opacity: 0.4; cursor: not-allowed; }
 .decision-btn:disabled:not(.locked) { opacity: 0.5; cursor: not-allowed; }
 .decision-name { flex: 1; font-weight: 500; }
+.decision-lock {
+  font-size: 0.68rem;
+  color: var(--yellow);
+  border: 1px solid #6c5c2f;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
 .decision-cost { font-size: 0.7rem; color: var(--text-dim); }
 .decision-check { color: var(--green); font-weight: 700; }
 

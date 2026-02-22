@@ -34,6 +34,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const dec = decisions.find((d) => d.id === decisionId);
     if (!dec) return;
     if (state.pendingDecisions.includes(decisionId)) return;
+    if (dec.unlockTurn !== undefined && state.turn < dec.unlockTurn) return;
     if (dec.cost > state.portfolio.cash) return;
     set({
       pendingDecisions: [...state.pendingDecisions, decisionId],
