@@ -29,7 +29,7 @@ The player is never just "clicking buttons." Every action has a visible chain of
 | # | Feature | Details |
 |---|---------|---------|
 | 1 | **5 countries** | Each with: GDP growth, interest rate, currency strength, debt/GDP, stability index. Distinct archetypes — see below. |
-| 2 | **10 trade decisions** | Buy/Sell Sovereign Bonds, Buy Equities, Buy Gold, Short Currency, Interest Rate Swap (receive/pay fixed), Increase/Reduce Leverage, Provide Liquidity, Lobby/PR Spend. Each has a 1-line tradeoff summary visible before confirming. |
+| 2 | **10 trade decisions** | Buy/Sell Sovereign Bonds, Buy Equities, Buy Gold, Short Currency, Interest Rate Swap (receive/pay fixed), Increase/Reduce Leverage, Provide Liquidity, Lobby/PR Spend. Each has a 1-line tradeoff summary and one playstyle tag (**Stabilizer / Predator / Allocator**) visible in the decisions panel filter. |
 | 3 | **2 player meters** | **Reputation** (0–100): media/political heat. Drops when your trades visibly hurt countries. **Risk** (0–100): bank fragility. High leverage + concentrated bets push this up. Either hitting 0/100 = game over. |
 | 4 | **Causal chain display** | Small HUD element: `Rates ↑ → FX ↑ → Exports ↓ → Growth ↓`. Updates live after each trade. This is the single most important UX element — it's what makes the game *feel* systemic. |
 | 5 | **1 event per turn** | Drawn from a pool of ~20 scripted events. Headline + effect + "why this happened" tooltip. Events reference your past actions when relevant ("Your bond sell-off contributed to Rivara's credit downgrade"). |

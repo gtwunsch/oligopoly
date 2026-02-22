@@ -15,7 +15,9 @@ function summarizeState(state: GameState) {
     score: state.score,
     portfolio: {
       aum: round(state.portfolio.aum, 4),
-      cash: round(state.portfolio.cash, 4),
+      cashTotal: round(state.portfolio.cashTotal, 4),
+      cashAvailable: round(state.portfolio.cashAvailable, 4),
+      cashLocked: round(state.portfolio.cashLocked, 4),
       leverage: round(state.portfolio.leverage, 4),
       riskScore: state.portfolio.riskScore,
       liquidity: state.portfolio.liquidity,
@@ -146,5 +148,44 @@ describe('sim sanity checks', () => {
       assertAllNumbersFinite(state);
       assertMeterRanges(state);
     }
+  });
+
+  it('keeps 5-turn openings style-distinct without obvious dominant line', () => {
+    const stabilizer = runScriptedTurns(20260301, [
+      ['buy_sovereign_bonds'],
+      ['reduce_leverage'],
+      ['buy_sovereign_bonds'],
+      ['reduce_leverage'],
+      ['buy_sovereign_bonds'],
+    ]);
+    const predator = runScriptedTurns(20260301, [
+      ['raise_leverage'],
+      ['raise_leverage'],
+      ['raise_leverage'],
+      ['raise_leverage'],
+      ['short_currency'],
+    ]);
+    const allocator = runScriptedTurns(20260301, [
+      ['buy_equities'],
+      ['buy_gold'],
+      ['buy_equities'],
+      ['buy_gold'],
+      ['buy_equities'],
+    ]);
+
+    const aumSpread = Math.max(
+      stabilizer.portfolio.aum,
+      predator.portfolio.aum,
+      allocator.portfolio.aum,
+    ) - Math.min(
+      stabilizer.portfolio.aum,
+      predator.portfolio.aum,
+      allocator.portfolio.aum,
+    );
+
+    expect(aumSpread).toBeLessThan(8);
+    expect(predator.portfolio.riskScore).toBeGreaterThanOrEqual(stabilizer.portfolio.riskScore);
+    expect(predator.reputation).toBeLessThanOrEqual(stabilizer.reputation);
+    expect(allocator.portfolio.riskScore).toBeLessThanOrEqual(predator.portfolio.riskScore);
   });
 });
