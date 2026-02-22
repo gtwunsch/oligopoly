@@ -207,6 +207,8 @@ Each action defines:
 - A **visible benefit** (what the player gains).
 - A **visible downside** (risk, reputation cost, or opportunity cost).
 - A **cooldown or limit** if needed (prevent degenerate spam).
+- Exactly one playstyle tag: `style_stabilizer` | `style_predator` | `style_allocator`.
+- UI should support a simple playstyle filter (`All / Stabilizer / Predator / Allocator`) without page redesign.
 
 ### Events
 Events must include:
