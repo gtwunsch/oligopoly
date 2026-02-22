@@ -16,6 +16,30 @@ export interface CountryState {
   equityIndex: number;    // rebased to 100 at start
 }
 
+export type CountryMetric =
+  | 'interestRate'
+  | 'inflation'
+  | 'growth'
+  | 'stability'
+  | 'debtToGdp'
+  | 'fxRate'
+  | 'sentiment'
+  | 'equityIndex';
+
+export type EdgeDirection = 'positive' | 'negative';
+
+export interface InfluenceEdge {
+  id: string;
+  fromCountry: string;
+  fromMetric: CountryMetric;
+  toCountry: string;
+  toMetric: CountryMetric;
+  direction: EdgeDirection;
+  weight: number;
+  formula: string;
+  label: string;
+}
+
 export interface PortfolioAllocation {
   countryId: string;
   asset: AssetClass;
