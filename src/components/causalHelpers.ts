@@ -142,7 +142,7 @@ function buildMetricCandidates(previous: CountryState, current: CountryState): M
   const equityDeltaPct =
     ((current.equityIndex - previous.equityIndex) / Math.max(0.0001, Math.abs(previous.equityIndex))) * 100;
 
-  return [
+  const candidates: MetricCandidate[] = [
     {
       metric: 'interestRate',
       label: 'Rate',
@@ -199,7 +199,9 @@ function buildMetricCandidates(previous: CountryState, current: CountryState): M
       hint: equityDeltaPct >= 0 ? 'Equities up -> risk budget expands' : 'Equities down -> drawdown pressure rises',
       magnitude: Math.abs(equityDeltaPct) / 1.2,
     },
-  ].filter((candidate) => Number.isFinite(candidate.magnitude));
+  ];
+
+  return candidates.filter((candidate) => Number.isFinite(candidate.magnitude));
 }
 
 function selectTopMetric(previous: CountryState, current: CountryState): MetricCandidate | null {
