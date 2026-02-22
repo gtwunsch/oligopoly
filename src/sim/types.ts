@@ -82,8 +82,22 @@ export interface LogEntry {
 export interface ActionHistoryEntry {
   turn: number;
   actionId: string;
+  choice?: 'A' | 'B';
   target?: string;
   magnitude?: number;
+}
+
+export interface ChoiceEventOptionView {
+  label: string;
+  impact: string;
+}
+
+export interface ActiveChoiceEvent {
+  id: string;
+  headline: string;
+  why: string;
+  optionA: ChoiceEventOptionView;
+  optionB: ChoiceEventOptionView;
 }
 
 export interface LastTurnDeltas {
@@ -116,10 +130,11 @@ export interface GameState {
   lastTurnCausalHints: string[];
   lastTurnActions: string[];
   actionHistory: ActionHistoryEntry[];
+  activeChoiceEvent: ActiveChoiceEvent | null;
   lastTurnSummary: LastTurnSummary;
   log: LogEntry[];
   pendingDecisions: string[];  // decision IDs queued this turn
-  phase: 'start' | 'playing' | 'summary' | 'gameover';
+  phase: 'start' | 'playing' | 'choice' | 'summary' | 'gameover';
   seed: number;
   score: number;
 }
