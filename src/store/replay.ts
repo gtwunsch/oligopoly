@@ -1,8 +1,10 @@
-import { advanceTurn, createNewGame, decisions } from '../sim';
+import { advanceTurn, createNewGame, decisions, scenarios } from '../sim';
 import type { GameState } from '../sim/types';
 
 const REPLAY_VERSION = 1 as const;
 const DECISION_IDS = new Set(decisions.map((decision) => decision.id));
+const SCENARIO_IDS = new Set(scenarios.map((scenario) => scenario.id));
+type ReplayScenarioId = NonNullable<Parameters<typeof createNewGame>[1]>;
 
 export interface ReplayTurnInput {
   actions: string[];
@@ -11,7 +13,7 @@ export interface ReplayTurnInput {
 export interface ReplayPayload {
   version: typeof REPLAY_VERSION;
   seed: number;
-  scenarioId?: string;
+  scenarioId?: ReplayScenarioId;
   turns: ReplayTurnInput[];
 }
 
@@ -59,6 +61,11 @@ function sanitizeActions(value: unknown): string[] {
   return unique;
 }
 
+function sanitizeScenarioId(value: unknown): ReplayScenarioId | undefined {
+  if (typeof value !== 'string') return undefined;
+  return SCENARIO_IDS.has(value as ReplayScenarioId) ? (value as ReplayScenarioId) : undefined;
+}
+
 export function sanitizeReplayTurns(turns: unknown): string[][] {
   if (!Array.isArray(turns)) return [];
   return turns.map((turn) => sanitizeActions(turn));
@@ -68,7 +75,7 @@ export function buildReplayPayload(seed: number, scenarioId: string, turnHistory
   return {
     version: REPLAY_VERSION,
     seed,
-    scenarioId,
+    scenarioId: sanitizeScenarioId(scenarioId),
     turns: turnHistory.map((actions) => ({ actions: [...actions] })),
   };
 }
@@ -103,7 +110,7 @@ export function parseReplayPayload(rawPayload: string): ReplayPayload {
   return {
     version: REPLAY_VERSION,
     seed,
-    scenarioId: typeof parsed.scenarioId === 'string' ? parsed.scenarioId : undefined,
+    scenarioId: sanitizeScenarioId(parsed.scenarioId),
     turns: turns.map((turn) => ({
       actions: isRecord(turn) ? sanitizeActions(turn.actions) : [],
     })),
