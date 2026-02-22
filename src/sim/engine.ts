@@ -28,6 +28,9 @@ export function createNewGame(seed?: number): GameState {
       liquidity: 100,
     },
     reputation: 70,
+    winTargetAum: 120,
+    maxTurns: 20,
+    outcome: 'ongoing',
     lastTurnCausalHints: [],
     lastTurnActions: [],
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
@@ -208,6 +211,7 @@ export function advanceTurn(state: GameState): GameState {
   const turnCausalHints: string[] = [];
   const executedDecisions: Decision[] = [];
   let next = structuredClone(state);
+  next.outcome = 'ongoing';
 
   // 1. Apply queued decisions
   for (const dId of next.pendingDecisions) {
@@ -313,8 +317,31 @@ export function advanceTurn(state: GameState): GameState {
   if (next.reputation <= 0) {
     newLog.push({ turn: next.turn, text: 'Reputation collapsed. Regulators have seized the bank.', type: 'info' });
     next.phase = 'gameover';
+    next.outcome = 'loss';
+  } else if (next.portfolio.riskScore >= 100) {
+    newLog.push({ turn: next.turn, text: 'Risk hit 100. Your bank has collapsed under stress.', type: 'info' });
+    next.phase = 'gameover';
+    next.outcome = 'loss';
   } else if (next.portfolio.aum < 20) {
     newLog.push({ turn: next.turn, text: 'AUM below $20B. The board has lost confidence.', type: 'info' });
+    next.phase = 'gameover';
+    next.outcome = 'loss';
+  } else if (next.turn >= next.maxTurns) {
+    if (next.portfolio.aum >= next.winTargetAum) {
+      newLog.push({
+        turn: next.turn,
+        text: `You reached Turn ${next.maxTurns} above the $${next.winTargetAum}B target. The board renews your mandate.`,
+        type: 'info',
+      });
+      next.outcome = 'win';
+    } else {
+      newLog.push({
+        turn: next.turn,
+        text: `You survived ${next.maxTurns} turns but missed the $${next.winTargetAum}B target.`,
+        type: 'info',
+      });
+      next.outcome = 'loss';
+    }
     next.phase = 'gameover';
   }
 

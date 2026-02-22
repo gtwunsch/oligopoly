@@ -298,6 +298,12 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   text-align: center;
 }
 .modal-card h2 { margin-bottom: 16px; }
+.summary-objective {
+  margin-top: -6px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
 .summary-pnl, .summary-aum {
   display: flex;
   justify-content: space-between;

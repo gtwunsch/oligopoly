@@ -1,7 +1,17 @@
 import { useGameStore } from '../store/gameStore';
 
 export function TurnSummary() {
-  const { log, turn, portfolio, reputation, lastTurnCausalHints, phase } = useGameStore();
+  const {
+    log,
+    turn,
+    portfolio,
+    reputation,
+    winTargetAum,
+    maxTurns,
+    outcome,
+    lastTurnCausalHints,
+    phase,
+  } = useGameStore();
   const dismissSummary = useGameStore((s) => s.dismissSummary);
   const reset = useGameStore((s) => s.reset);
 
@@ -9,11 +19,20 @@ export function TurnSummary() {
   const lastPnl = portfolio.pnlHistory[portfolio.pnlHistory.length - 1] ?? 0;
 
   const isGameOver = phase === 'gameover';
+  const title = isGameOver
+    ? outcome === 'win'
+      ? 'Victory'
+      : 'Game Over'
+    : `Quarter Summary - Turn ${turn}`;
+  const objectiveText = `Objective: reach $${winTargetAum.toFixed(0)}B by turn ${maxTurns}.`;
 
   return (
     <div className="modal-overlay">
       <div className="modal-card">
-        <h2>{isGameOver ? 'Game Over' : `Quarter Summary – Turn ${turn}`}</h2>
+        <h2>{title}</h2>
+        <p className={`summary-objective ${isGameOver && outcome === 'win' ? 'text-safe' : ''}`}>
+          {objectiveText}
+        </p>
         <div className="summary-pnl">
           <span>P&L this quarter:</span>
           <span className={lastPnl >= 0 ? 'text-safe' : 'text-danger'}>

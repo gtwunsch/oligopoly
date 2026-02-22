@@ -67,6 +67,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       countries: state.countries,
       portfolio: state.portfolio,
       reputation: state.reputation,
+      winTargetAum: state.winTargetAum,
+      maxTurns: state.maxTurns,
+      outcome: state.outcome,
       lastTurnCausalHints: state.lastTurnCausalHints,
       lastTurnActions: state.lastTurnActions,
       log: state.log,
@@ -90,6 +93,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       countries: s.countries,
       portfolio: s.portfolio,
       reputation: s.reputation,
+      winTargetAum: s.winTargetAum,
+      maxTurns: s.maxTurns,
+      outcome: s.outcome,
       lastTurnCausalHints: s.lastTurnCausalHints,
       lastTurnActions: s.lastTurnActions,
       log: s.log,
@@ -109,7 +115,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         ...createNewGame(),
         ...data,
+        pendingDecisions: Array.isArray(data.pendingDecisions)
+          ? data.pendingDecisions.filter(
+            (id): id is string => typeof id === 'string' && decisions.some((decision) => decision.id === id),
+          )
+          : [],
         reputation: typeof data.reputation === 'number' ? data.reputation : DEFAULT_REPUTATION,
+        winTargetAum: typeof data.winTargetAum === 'number' ? data.winTargetAum : 120,
+        maxTurns: typeof data.maxTurns === 'number' ? data.maxTurns : 20,
+        outcome: data.outcome === 'win' || data.outcome === 'loss' ? data.outcome : 'ongoing',
         lastTurnCausalHints: Array.isArray(data.lastTurnCausalHints)
           ? data.lastTurnCausalHints.filter((hint): hint is string => typeof hint === 'string')
           : DEFAULT_CAUSAL_HINTS,

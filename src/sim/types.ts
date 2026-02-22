@@ -81,6 +81,9 @@ export interface GameState {
   countries: CountryState[];
   portfolio: Portfolio;
   reputation: number;       // 0-100
+  winTargetAum: number;
+  maxTurns: number;
+  outcome: 'ongoing' | 'win' | 'loss';
   lastTurnCausalHints: string[];
   lastTurnActions: string[];
   log: LogEntry[];

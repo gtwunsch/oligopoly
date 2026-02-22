@@ -25,7 +25,7 @@ export function StartScreen() {
             </button>
           )}
         </div>
-        <p className="hint">Each turn = 1 quarter. Survive and profit.</p>
+        <p className="hint">Each turn = 1 quarter. Reach $120B AUM by turn 20.</p>
       </div>
     </div>
   );

@@ -5,7 +5,8 @@ function fmt(n: number, decimals = 1): string {
 }
 
 export function KPIBar() {
-  const { year, quarter, turn, portfolio, reputation, score } = useGameStore();
+  const { year, quarter, turn, portfolio, reputation, winTargetAum, maxTurns, score } = useGameStore();
+  const turnsLeft = Math.max(0, maxTurns - turn);
 
   return (
     <header className="kpi-bar">
@@ -17,7 +18,9 @@ export function KPIBar() {
       </div>
       <div className="kpi">
         <span className="kpi-label">Turn</span>
-        <span className="kpi-value">{turn}</span>
+        <span className="kpi-value">
+          {turn}/{maxTurns}
+        </span>
       </div>
       <div className="kpi">
         <span className="kpi-label">AUM</span>
@@ -46,6 +49,16 @@ export function KPIBar() {
       <div className="kpi">
         <span className="kpi-label">Liquidity</span>
         <span className="kpi-value">{portfolio.liquidity}</span>
+      </div>
+      <div className="kpi">
+        <span className="kpi-label">Goal</span>
+        <span className={`kpi-value ${portfolio.aum >= winTargetAum ? 'text-safe' : ''}`}>
+          ${fmt(winTargetAum)}B
+        </span>
+      </div>
+      <div className="kpi">
+        <span className="kpi-label">Turns Left</span>
+        <span className="kpi-value">{turnsLeft}</span>
       </div>
       <div className="kpi">
         <span className="kpi-label">Score</span>
