@@ -23,6 +23,7 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
     scenarioName: scenario.name,
     countries: applyScenarioCountries(structuredClone(initialCountries), scenario),
     eventWeightBias: { ...scenario.eventWeightBias },
+    worldFlags: {},
     portfolio: {
       aum: 100,
       cash: 100,
@@ -189,6 +190,31 @@ function computeLiquidity(portfolio: Portfolio): number {
   return clamp(Math.round(cashRatio * 100 + (1 / portfolio.leverage) * 20), 0, 100);
 }
 
+function decayWorldFlags(flags: Record<string, number>): Record<string, number> {
+  const nextFlags: Record<string, number> = {};
+  for (const [key, value] of Object.entries(flags)) {
+    const nextValue = Math.max(0, Math.floor(value) - 1);
+    if (nextValue > 0) nextFlags[key] = nextValue;
+  }
+  return nextFlags;
+}
+
+function mergeWorldFlags(
+  currentFlags: Record<string, number>,
+  patchFlags: Record<string, number>,
+): Record<string, number> {
+  const merged = { ...currentFlags };
+  for (const [key, value] of Object.entries(patchFlags)) {
+    const normalized = Math.floor(value);
+    if (normalized > 0) {
+      merged[key] = normalized;
+    } else {
+      delete merged[key];
+    }
+  }
+  return merged;
+}
+
 function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
   if (!event.attributionRules || executedDecisions.length === 0) {
     return null;
@@ -217,6 +243,7 @@ export function advanceTurn(state: GameState): GameState {
   const executedDecisions: Decision[] = [];
   let next = structuredClone(state);
   next.outcome = 'ongoing';
+  next.worldFlags = decayWorldFlags(next.worldFlags);
 
   // 1. Apply queued decisions
   for (const dId of next.pendingDecisions) {
@@ -228,6 +255,9 @@ export function advanceTurn(state: GameState): GameState {
     if (patch.countries) next.countries = patch.countries;
     if (typeof patch.reputation === 'number') {
       next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (patch.worldFlags) {
+      next.worldFlags = mergeWorldFlags(next.worldFlags, patch.worldFlags);
     }
     if (dec.reputationDelta) {
       next.reputation = clamp(next.reputation + dec.reputationDelta, 0, 100);
@@ -255,11 +285,16 @@ export function advanceTurn(state: GameState): GameState {
     .filter((event) => event.weight > 0);
   for (let i = 0; i < numEvents && eligible.length > 0; i++) {
     const ev = rng.weightedPick(eligible);
+    const pickedIndex = eligible.findIndex((candidate) => candidate.id === ev.id);
+    if (pickedIndex >= 0) eligible.splice(pickedIndex, 1);
     const patch = ev.effect(next);
     if (patch.countries) next.countries = patch.countries;
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
     if (typeof patch.reputation === 'number') {
       next.reputation = clamp(patch.reputation, 0, 100);
+    }
+    if (patch.worldFlags) {
+      next.worldFlags = mergeWorldFlags(next.worldFlags, patch.worldFlags);
     }
     if (ev.reputationDelta) {
       next.reputation = clamp(next.reputation + ev.reputationDelta, 0, 100);

@@ -12,6 +12,8 @@ function updateCountry(
   };
 }
 
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
 export const events: GameEvent[] = [
   {
     id: 'fed_hike',
@@ -185,6 +187,147 @@ export const events: GameEvent[] = [
         sentiment: jp.sentiment - 8,
       });
     },
+  },
+  {
+    id: 'em_pressure_warning',
+    name: 'EM Funding Pressure',
+    description: 'Funding spreads widen in Brazil and confidence slips.',
+    weight: 1.5,
+    reputationDelta: -1,
+    causalHint: 'Stability slips -> funding stress builds -> crisis odds rise',
+    attributionRules: [
+      {
+        decisionId: 'sell_sovereign_bonds',
+        text: 'Your bond selling helped accelerate that pressure.',
+      },
+      {
+        decisionId: 'short_currency',
+        text: 'Your FX short added to market nerves.',
+      },
+    ],
+    trigger: (s) =>
+      s.countries.find((c) => c.id === 'br')!.stability < 58 &&
+      (s.worldFlags.em_pressure ?? 0) === 0,
+    effect: (s) => {
+      const br = s.countries.find((c) => c.id === 'br')!;
+      return {
+        countries: s.countries.map((c) =>
+          c.id === 'br'
+            ? {
+                ...c,
+                stability: clamp(br.stability - 2, 0, 100),
+                sentiment: clamp(br.sentiment - 6, -100, 100),
+              }
+            : c,
+        ),
+        worldFlags: {
+          em_pressure: 3,
+        },
+      };
+    },
+  },
+  {
+    id: 'capital_flight_wave',
+    name: 'Capital Flight Wave',
+    description: 'Investors pull capital out of Brazil as panic grows.',
+    weight: 1.2,
+    reputationDelta: -2,
+    causalHint: 'Pressure persists -> outflows accelerate -> FX and stability weaken',
+    trigger: (s) => (s.worldFlags.em_pressure ?? 0) > 0,
+    effect: (s) => {
+      const br = s.countries.find((c) => c.id === 'br')!;
+      return {
+        countries: s.countries.map((c) =>
+          c.id === 'br'
+            ? {
+                ...c,
+                fxRate: br.fxRate * 0.94,
+                stability: clamp(br.stability - 5, 0, 100),
+                sentiment: clamp(br.sentiment - 8, -100, 100),
+              }
+            : c,
+        ),
+        worldFlags: {
+          em_capital_flight: 3,
+        },
+      };
+    },
+  },
+  {
+    id: 'imf_backstop',
+    name: 'Emergency IMF Backstop',
+    description: 'Emergency financing package slows the EM selloff.',
+    weight: 1.1,
+    reputationDelta: 2,
+    causalHint: 'Emergency support -> rates ease -> confidence partially recovers',
+    attributionRules: [
+      {
+        decisionId: 'provide_liquidity',
+        text: 'Your liquidity support improved the odds of stabilization.',
+      },
+      {
+        decisionId: 'lobby_pr_spend',
+        text: 'Your political outreach helped unlock policy support.',
+      },
+    ],
+    trigger: (s) =>
+      (s.worldFlags.em_capital_flight ?? 0) > 0 &&
+      s.countries.find((c) => c.id === 'br')!.stability < 55,
+    effect: (s) => {
+      const br = s.countries.find((c) => c.id === 'br')!;
+      return {
+        countries: s.countries.map((c) =>
+          c.id === 'br'
+            ? {
+                ...c,
+                interestRate: clamp(br.interestRate - 0.4, 0, 20),
+                stability: clamp(br.stability + 6, 0, 100),
+                sentiment: clamp(br.sentiment + 7, -100, 100),
+              }
+            : c,
+        ),
+        worldFlags: {
+          em_pressure: 0,
+          em_capital_flight: 0,
+        },
+      };
+    },
+  },
+  {
+    id: 'regulatory_warning',
+    name: 'Regulatory Warning',
+    description: 'Supervisors flag your risk profile and demand restraint.',
+    weight: 1.0,
+    reputationDelta: -2,
+    causalHint: 'Risk runs hot -> oversight tightens -> policy pressure rises',
+    trigger: (s) =>
+      s.portfolio.riskScore > 72 &&
+      (s.worldFlags.reg_watch ?? 0) === 0,
+    effect: () => ({
+      worldFlags: {
+        reg_watch: 3,
+      },
+    }),
+  },
+  {
+    id: 'regulatory_crackdown',
+    name: 'Regulatory Crackdown',
+    description: 'Regulators force de-risking after persistent market pressure.',
+    weight: 0.9,
+    reputationDelta: -3,
+    causalHint: 'Warnings ignored -> crackdown hits -> leverage is forced lower',
+    trigger: (s) =>
+      (s.worldFlags.reg_watch ?? 0) > 0 &&
+      s.reputation < 45,
+    effect: (s) => ({
+      portfolio: {
+        ...s.portfolio,
+        leverage: Math.max(1, s.portfolio.leverage - 0.5),
+      },
+      worldFlags: {
+        reg_watch: 0,
+      },
+    }),
   },
   {
     id: 'risk_on',

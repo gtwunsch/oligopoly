@@ -69,6 +69,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       scenarioName: state.scenarioName,
       countries: state.countries,
       eventWeightBias: state.eventWeightBias,
+      worldFlags: state.worldFlags,
       portfolio: state.portfolio,
       reputation: state.reputation,
       winTargetAum: state.winTargetAum,
@@ -98,6 +99,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       scenarioName: s.scenarioName,
       countries: s.countries,
       eventWeightBias: s.eventWeightBias,
+      worldFlags: s.worldFlags,
       portfolio: s.portfolio,
       reputation: s.reputation,
       winTargetAum: s.winTargetAum,
@@ -138,6 +140,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
             Object.entries(data.eventWeightBias)
               .filter(([, value]) => typeof value === 'number')
               .map(([key, value]) => [key, value as number]),
+          )
+          : {},
+        worldFlags: data.worldFlags && typeof data.worldFlags === 'object'
+          ? Object.fromEntries(
+            Object.entries(data.worldFlags)
+              .filter(([, value]) => typeof value === 'number' && value > 0)
+              .map(([key, value]) => [key, Math.floor(value as number)]),
           )
           : {},
         lastTurnCausalHints: Array.isArray(data.lastTurnCausalHints)

@@ -82,6 +82,7 @@ export interface GameState {
   scenarioName: string;
   countries: CountryState[];
   eventWeightBias: Record<string, number>;
+  worldFlags: Record<string, number>;
   portfolio: Portfolio;
   reputation: number;       // 0-100
   winTargetAum: number;
