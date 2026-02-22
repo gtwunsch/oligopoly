@@ -39,6 +39,7 @@ These pillars resolve design disputes. If a feature conflicts with a higher-prio
 ### Deterministic simulation
 - Simulation must be deterministic with a seeded RNG.
 - Same seed + same actions ⇒ same outcomes. No exceptions.
+- Event text variation (headlines/templates) must also be deterministic for the same seed + turn + event.
 
 ### Data-driven design
 - Countries, actions, and events must be declarative data objects.
@@ -198,12 +199,17 @@ Events must include:
 
 | Field | Rule |
 |---|---|
-| `headline` | ≤ 10 words |
+| `headlineTemplates` | 2–4 short variants (≤ 10 words each), selected deterministically |
 | `why` | 1 sentence explaining the cause |
 | `effects` | Explicit deltas on named metrics |
 | `triggers` | Simple boolean conditions on current state |
 
 No lore dumps. No flavor text longer than one sentence.
+
+Event personalization rules (lightweight only):
+- Prefer simple templates over procedural text systems (no new DSL).
+- If referencing player agency, use only recent action context (e.g., last queued/executed action or last turn actions).
+- Keep tone neutral and concise; avoid editorial framing.
 
 ---
 

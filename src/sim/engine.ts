@@ -10,6 +10,7 @@ import type {
 import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
+import { buildEventHeadline, buildEventWhy } from './eventText';
 import { initialCountries } from './countries';
 import { decisions } from './decisions';
 import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
@@ -399,8 +400,10 @@ export function advanceTurn(state: GameState): GameState {
       turnCausalHints.push(ev.causalHint);
     }
     const attribution = buildAttributionText(ev, executedDecisions, recentActionHistory);
-    const description = attribution ? `${ev.description} ${attribution}` : ev.description;
-    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
+    const headline = buildEventHeadline(ev, next);
+    const why = buildEventWhy(ev, next, executedDecisions, decisions, !attribution);
+    const details = attribution ? `${why} ${attribution}` : why;
+    newLog.push({ turn: next.turn + 1, text: `${headline}: ${details}`, type: 'event' });
   }
 
   // 4. PnL
