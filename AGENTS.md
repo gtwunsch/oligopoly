@@ -161,6 +161,12 @@ Maintain two global meters:
 
 Actions and events should push/pull these meters. Crossing thresholds triggers escalating consequences, not instant game-overs.
 
+#### Current core state contract (for all agents)
+- `GameState.reputation` is a 0–100 meter and must always be clamped; loss condition triggers at `reputation <= 0`.
+- `advanceTurn` must keep reputation effects deterministic: aggressive actions (e.g. FX short, leverage up, bond selling in fragile EM) should pull down; stabilizing actions (e.g. provide liquidity, reduce leverage, buy bonds in crisis) should lift or offset penalties.
+- `GameState.actionHistory` stores recent actions as `{ turn, actionId, target?, magnitude? }` with a short rolling window (currently 5 turns) for event attribution and future UX copy.
+- `GameState.lastTurnSummary` exposes a minimal UI-ready shape: `{ turn, deltas: { reputationDelta, riskDelta, aumDelta, liquidityDelta }, why }`.
+
 ### Balance philosophy
 - Aim for *interesting* balance, not perfect balance. Asymmetry is fine if the tradeoff is clear.
 - Tune iteratively using the dev panel and seed replay, not by theorycrafting alone.

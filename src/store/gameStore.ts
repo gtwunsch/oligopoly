@@ -6,6 +6,71 @@ const SAVE_KEY = 'macro-sim-save';
 const DEFAULT_REPUTATION = 70;
 const DEFAULT_CAUSAL_HINTS: string[] = [];
 const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
+const DEFAULT_ACTION_HISTORY: GameState['actionHistory'] = [];
+const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
+  turn: 0,
+  deltas: {
+    reputationDelta: 0,
+    riskDelta: 0,
+    aumDelta: 0,
+    liquidityDelta: 0,
+  },
+  why: [],
+};
+
+function sanitizeActionHistory(
+  actionHistory: Partial<GameState>['actionHistory'],
+): GameState['actionHistory'] {
+  if (!Array.isArray(actionHistory)) return DEFAULT_ACTION_HISTORY;
+  return actionHistory
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const turn = (entry as { turn?: unknown }).turn;
+      const actionId = (entry as { actionId?: unknown }).actionId;
+      if (typeof turn !== 'number' || !Number.isFinite(turn) || typeof actionId !== 'string') {
+        return null;
+      }
+      const target = (entry as { target?: unknown }).target;
+      const magnitude = (entry as { magnitude?: unknown }).magnitude;
+      return {
+        turn: Math.max(0, Math.floor(turn)),
+        actionId,
+        ...(typeof target === 'string' ? { target } : {}),
+        ...(typeof magnitude === 'number' && Number.isFinite(magnitude) ? { magnitude } : {}),
+      };
+    })
+    .filter((entry): entry is GameState['actionHistory'][number] => entry !== null);
+}
+
+function sanitizeLastTurnSummary(
+  summary: Partial<GameState>['lastTurnSummary'],
+): GameState['lastTurnSummary'] {
+  if (!summary || typeof summary !== 'object') return DEFAULT_LAST_TURN_SUMMARY;
+  const turn = (summary as { turn?: unknown }).turn;
+  const deltas = (summary as { deltas?: unknown }).deltas;
+  const why = (summary as { why?: unknown }).why;
+
+  return {
+    turn: typeof turn === 'number' && Number.isFinite(turn) ? Math.max(0, Math.floor(turn)) : 0,
+    deltas: {
+      reputationDelta: typeof (deltas as { reputationDelta?: unknown })?.reputationDelta === 'number'
+        ? (deltas as { reputationDelta: number }).reputationDelta
+        : 0,
+      riskDelta: typeof (deltas as { riskDelta?: unknown })?.riskDelta === 'number'
+        ? (deltas as { riskDelta: number }).riskDelta
+        : 0,
+      aumDelta: typeof (deltas as { aumDelta?: unknown })?.aumDelta === 'number'
+        ? (deltas as { aumDelta: number }).aumDelta
+        : 0,
+      liquidityDelta: typeof (deltas as { liquidityDelta?: unknown })?.liquidityDelta === 'number'
+        ? (deltas as { liquidityDelta: number }).liquidityDelta
+        : 0,
+    },
+    why: Array.isArray(why)
+      ? why.filter((hint): hint is string => typeof hint === 'string').slice(0, 3)
+      : [],
+  };
+}
 
 interface GameActions {
   newGame: (scenarioId?: Parameters<typeof createNewGame>[1]) => void;
@@ -77,6 +142,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       outcome: state.outcome,
       lastTurnCausalHints: state.lastTurnCausalHints,
       lastTurnActions: state.lastTurnActions,
+      actionHistory: state.actionHistory,
+      lastTurnSummary: state.lastTurnSummary,
       log: state.log,
       pendingDecisions: state.pendingDecisions,
       phase: state.phase,
@@ -107,6 +174,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       outcome: s.outcome,
       lastTurnCausalHints: s.lastTurnCausalHints,
       lastTurnActions: s.lastTurnActions,
+      actionHistory: s.actionHistory,
+      lastTurnSummary: s.lastTurnSummary,
       log: s.log,
       pendingDecisions: s.pendingDecisions,
       phase: s.phase,
@@ -155,6 +224,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastTurnActions: Array.isArray(data.lastTurnActions)
           ? data.lastTurnActions.filter((action): action is string => typeof action === 'string')
           : DEFAULT_LAST_TURN_ACTIONS,
+        actionHistory: sanitizeActionHistory(data.actionHistory),
+        lastTurnSummary: sanitizeLastTurnSummary(data.lastTurnSummary),
         phase: 'playing',
       });
       return true;

@@ -1,4 +1,12 @@
-import type { CountryState, Decision, GameEvent, GameState, LogEntry, Portfolio } from './types';
+import type {
+  ActionHistoryEntry,
+  CountryState,
+  Decision,
+  GameEvent,
+  GameState,
+  LogEntry,
+  Portfolio,
+} from './types';
 import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
@@ -9,6 +17,55 @@ import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './
 // ── Helpers ──
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const roundTo2 = (v: number) => Math.round(v * 100) / 100;
+const ACTION_HISTORY_TURN_WINDOW = 5;
+const BR_FRAGILE_STABILITY = 60;
+const BR_CRISIS_STABILITY = 50;
+const RECENT_ACTION_ATTRIBUTION_PREFIX = 'Recent actions set the stage:';
+
+function buildActionHistoryEntry(turn: number, decisionId: string): ActionHistoryEntry {
+  switch (decisionId) {
+    case 'buy_sovereign_bonds':
+      return { turn, actionId: decisionId, target: 'br', magnitude: 0.05 };
+    case 'sell_sovereign_bonds':
+      return { turn, actionId: decisionId, target: 'br', magnitude: -0.05 };
+    case 'short_currency':
+      return { turn, actionId: decisionId, target: 'br', magnitude: 0.04 };
+    case 'provide_liquidity':
+      return { turn, actionId: decisionId, target: 'br', magnitude: 0.35 };
+    case 'raise_leverage':
+      return { turn, actionId: decisionId, magnitude: 0.5 };
+    case 'reduce_leverage':
+      return { turn, actionId: decisionId, magnitude: -0.5 };
+    case 'enter_irs':
+      return { turn, actionId: decisionId, target: 'us', magnitude: 0.04 };
+    default:
+      return { turn, actionId: decisionId };
+  }
+}
+
+function computeActionReputationDelta(decision: Decision, stateBeforeDecision: GameState): number {
+  const brStability = stateBeforeDecision.countries.find((country) => country.id === 'br')?.stability ?? 100;
+  const isFragile = brStability < BR_FRAGILE_STABILITY;
+  const isCrisis = brStability < BR_CRISIS_STABILITY;
+
+  switch (decision.id) {
+    case 'short_currency':
+      return -2;
+    case 'raise_leverage':
+      return -1;
+    case 'sell_sovereign_bonds':
+      return isFragile ? -2 : 0;
+    case 'provide_liquidity':
+      return isCrisis ? 2 : 1;
+    case 'reduce_leverage':
+      return 1;
+    case 'buy_sovereign_bonds':
+      return isCrisis ? 1 : 0;
+    default:
+      return decision.reputationDelta ?? 0;
+  }
+}
 
 // ── New game factory ──
 
@@ -39,6 +96,17 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
     outcome: 'ongoing',
     lastTurnCausalHints: [],
     lastTurnActions: [],
+    actionHistory: [],
+    lastTurnSummary: {
+      turn: 0,
+      deltas: {
+        reputationDelta: 0,
+        riskDelta: 0,
+        aumDelta: 0,
+        liquidityDelta: 0,
+      },
+      why: [],
+    },
     log: [{ turn: 0, text: 'Welcome, CEO. The board expects results.', type: 'info' }],
     pendingDecisions: [],
     phase: 'playing',
@@ -215,10 +283,22 @@ function mergeWorldFlags(
   return merged;
 }
 
-function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
-  if (!event.attributionRules || executedDecisions.length === 0) {
+function buildAttributionText(
+  event: GameEvent,
+  executedDecisions: Decision[],
+  actionHistory: ActionHistoryEntry[],
+): string | null {
+  if (!event.attributionRules || (executedDecisions.length === 0 && actionHistory.length === 0)) {
     return null;
   }
+
+  const executedDecisionTags = new Set(executedDecisions.flatMap((decision) => decision.tags));
+  const actionHistoryDecisionTags = new Set(
+    actionHistory
+      .map((entry) => decisions.find((decision) => decision.id === entry.actionId))
+      .filter((decision): decision is Decision => decision !== undefined)
+      .flatMap((decision) => decision.tags),
+  );
 
   for (const rule of event.attributionRules) {
     if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
@@ -226,9 +306,15 @@ function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): 
     }
     if (rule.decisionTag) {
       const tag = rule.decisionTag;
-      if (executedDecisions.some((decision) => decision.tags.includes(tag))) {
+      if (executedDecisionTags.has(tag)) {
         return rule.text;
       }
+    }
+    if (rule.decisionId && actionHistory.some((entry) => entry.actionId === rule.decisionId)) {
+      return `${RECENT_ACTION_ATTRIBUTION_PREFIX} ${rule.text}`;
+    }
+    if (rule.decisionTag && actionHistoryDecisionTags.has(rule.decisionTag)) {
+      return `${RECENT_ACTION_ATTRIBUTION_PREFIX} ${rule.text}`;
     }
   }
   return null;
@@ -237,11 +323,17 @@ function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): 
 // ── Main tick ──
 
 export function advanceTurn(state: GameState): GameState {
+  const previousReputation = state.reputation;
+  const previousRisk = state.portfolio.riskScore;
+  const previousAum = state.portfolio.aum;
+  const previousLiquidity = state.portfolio.liquidity;
+
   const rng = createRng(state.seed + state.turn * 7919);
   const newLog: LogEntry[] = [];
   const turnCausalHints: string[] = [];
   const executedDecisions: Decision[] = [];
-  let next = structuredClone(state);
+  const turnActionHistory: ActionHistoryEntry[] = [];
+  const next = structuredClone(state);
   next.outcome = 'ongoing';
   next.worldFlags = decayWorldFlags(next.worldFlags);
 
@@ -249,6 +341,8 @@ export function advanceTurn(state: GameState): GameState {
   for (const dId of next.pendingDecisions) {
     const dec = decisions.find((d) => d.id === dId);
     if (!dec) continue;
+    const decisionReputationDelta = computeActionReputationDelta(dec, next);
+
     const patch = dec.effect(next);
     Object.assign(next, patch);
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
@@ -259,13 +353,14 @@ export function advanceTurn(state: GameState): GameState {
     if (patch.worldFlags) {
       next.worldFlags = mergeWorldFlags(next.worldFlags, patch.worldFlags);
     }
-    if (dec.reputationDelta) {
-      next.reputation = clamp(next.reputation + dec.reputationDelta, 0, 100);
+    if (decisionReputationDelta !== 0) {
+      next.reputation = clamp(next.reputation + decisionReputationDelta, 0, 100);
     }
     if (dec.causalHint) {
       turnCausalHints.push(dec.causalHint);
     }
     executedDecisions.push(dec);
+    turnActionHistory.push(buildActionHistoryEntry(next.turn + 1, dec.id));
     newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
   }
   next.pendingDecisions = [];
@@ -283,6 +378,7 @@ export function advanceTurn(state: GameState): GameState {
       weight: event.weight * (next.eventWeightBias[event.id] ?? 1),
     }))
     .filter((event) => event.weight > 0);
+  const recentActionHistory = [...next.actionHistory, ...turnActionHistory];
   for (let i = 0; i < numEvents && eligible.length > 0; i++) {
     const ev = rng.weightedPick(eligible);
     const pickedIndex = eligible.findIndex((candidate) => candidate.id === ev.id);
@@ -302,7 +398,7 @@ export function advanceTurn(state: GameState): GameState {
     if (ev.causalHint) {
       turnCausalHints.push(ev.causalHint);
     }
-    const attribution = buildAttributionText(ev, executedDecisions);
+    const attribution = buildAttributionText(ev, executedDecisions, recentActionHistory);
     const description = attribution ? `${ev.description} ${attribution}` : ev.description;
     newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
   }
@@ -391,8 +487,23 @@ export function advanceTurn(state: GameState): GameState {
     next.phase = 'gameover';
   }
 
-  next.lastTurnCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
+  const minTurn = Math.max(1, next.turn - (ACTION_HISTORY_TURN_WINDOW - 1));
+  next.actionHistory = [...next.actionHistory, ...turnActionHistory]
+    .filter((entry) => entry.turn >= minTurn && entry.turn <= next.turn);
+
+  const dedupedCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
+  next.lastTurnCausalHints = dedupedCausalHints;
   next.lastTurnActions = executedDecisions.map((decision) => decision.id);
+  next.lastTurnSummary = {
+    turn: next.turn,
+    deltas: {
+      reputationDelta: roundTo2(next.reputation - previousReputation),
+      riskDelta: roundTo2(next.portfolio.riskScore - previousRisk),
+      aumDelta: roundTo2(next.portfolio.aum - previousAum),
+      liquidityDelta: roundTo2(next.portfolio.liquidity - previousLiquidity),
+    },
+    why: dedupedCausalHints,
+  };
   next.log = [...next.log, ...newLog];
   return next;
 }
