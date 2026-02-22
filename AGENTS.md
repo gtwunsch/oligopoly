@@ -221,6 +221,14 @@ No lore dumps. No flavor text longer than one sentence.
 | Bound sanity | Risk and metrics stay within defined min/max with default play |
 | Event trigger coverage | Each event can fire under at least one constructed state |
 
+### Current sanity baseline (QA/Automation)
+- Implemented in `src/sim/engine.sanity.test.ts`.
+- Includes:
+  - Same seed + same action script => identical summarized state (snapshot baseline).
+  - 30-turn simulation with simple seeded random actions => no `NaN`/`Infinity`.
+  - Global meters remain in range (`reputation`, `riskScore`, `liquidity`).
+- Run with `npm test`.
+
 ### Dev panel (dev-only, hidden in production)
 - Current seed
 - Last-turn deltas for all metrics
