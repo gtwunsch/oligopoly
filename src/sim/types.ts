@@ -40,16 +40,24 @@ export interface Portfolio {
   liquidity: number;        // 0–100
 }
 
+export interface PendingDecision {
+  decisionId: string;
+  targetCountryId?: string;
+}
+
 export interface Decision {
   id: string;
   name: string;
+  shortDesc: string;
   description: string;
-  cost: number;             // $B cost to execute
+  cost: number;             // $B total cost to execute (fee + capital)
   tags: string[];
+  category: 'invest' | 'divest' | 'risk' | 'political';
+  requiresTarget?: boolean;
   unlockTurn?: number;
   reputationDelta?: number;
   causalHint?: string;
-  effect: (state: GameState) => Partial<GameState>;
+  effect: (state: GameState, targetCountryId?: string) => Partial<GameState>;
 }
 
 export interface GameEvent {
@@ -81,6 +89,7 @@ export interface GameState {
   scenarioId: string;
   scenarioName: string;
   countries: CountryState[];
+  previousCountries: CountryState[];
   eventWeightBias: Record<string, number>;
   worldFlags: Record<string, number>;
   portfolio: Portfolio;
@@ -91,7 +100,7 @@ export interface GameState {
   lastTurnCausalHints: string[];
   lastTurnActions: string[];
   log: LogEntry[];
-  pendingDecisions: string[];  // decision IDs queued this turn
+  pendingDecisions: PendingDecision[];
   phase: 'start' | 'playing' | 'summary' | 'gameover';
   seed: number;
   score: number;

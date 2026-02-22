@@ -50,7 +50,7 @@ export function Dashboard() {
 
       <div className="action-bar">
         <span className="queued-count">
-          {pendingDecisions.length} decision{pendingDecisions.length !== 1 ? 's' : ''} queued
+          {pendingDecisions.length} action{pendingDecisions.length !== 1 ? 's' : ''} queued
         </span>
         <div className="action-buttons">
           <button className="btn btn-secondary" onClick={save} title="Save to browser">

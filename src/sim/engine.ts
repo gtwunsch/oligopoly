@@ -15,13 +15,15 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): GameState {
   const s = seed ?? Date.now();
   const scenario = getScenarioById(scenarioId);
+  const countries = applyScenarioCountries(structuredClone(initialCountries), scenario);
   return {
     turn: 0,
     year: 2025,
     quarter: 1,
     scenarioId: scenario.id,
     scenarioName: scenario.name,
-    countries: applyScenarioCountries(structuredClone(initialCountries), scenario),
+    countries,
+    previousCountries: structuredClone(countries),
     eventWeightBias: { ...scenario.eventWeightBias },
     worldFlags: {},
     portfolio: {
@@ -48,52 +50,44 @@ export function createNewGame(seed?: number, scenarioId = DEFAULT_SCENARIO_ID): 
 }
 
 // ── Country macro update (influence graph) ──
-// rates -> FX -> inflation -> stability -> sentiment -> equities
 
 function tickCountry(c: CountryState, rng: Rng): CountryState {
   const n = { ...c };
   n.fxPrevious = c.fxRate;
 
-  // rates drift toward inflation + 1% (Taylor-lite)
   const rateTarget = c.inflation + 1;
   n.interestRate = clamp(
     c.interestRate + (rateTarget - c.interestRate) * 0.05 + rng.normal(0, 0.1),
     0, 20,
   );
 
-  // FX influenced by rate differentials & sentiment
-  const rateDelta = n.interestRate - 3.5; // vs "global neutral"
+  const rateDelta = n.interestRate - 3.5;
   n.fxRate = clamp(
     c.fxRate * (1 + rateDelta * 0.002 + c.sentiment * 0.0002 + rng.normal(0, 0.01)),
     c.fxRate * 0.85, c.fxRate * 1.15,
   );
 
-  // inflation mean-reverts, pushed by growth
   n.inflation = clamp(
     c.inflation + (2.0 - c.inflation) * 0.03 + c.growth * 0.02 + rng.normal(0, 0.15),
     -2, 30,
   );
 
-  // growth drifts, hurt by high rates
   n.growth = clamp(
     c.growth + (2.0 - c.growth) * 0.04 - (c.interestRate - 3) * 0.03 + rng.normal(0, 0.2),
     -10, 15,
   );
 
-  // stability: eroded by debt, low growth, high inflation
   const stabilityPressure =
     (c.debtToGdp > 100 ? -0.3 : 0.1) +
     (c.growth < 0 ? -1 : 0.2) +
     (c.inflation > 6 ? -0.5 : 0);
   n.stability = clamp(c.stability + stabilityPressure + rng.normal(0, 0.5), 0, 100);
 
-  // debt drifts with growth & rate
   n.debtToGdp = clamp(
     c.debtToGdp + (c.interestRate - c.growth) * 0.1 + rng.normal(0, 0.3),
     0, 300,
   );
 
-  // sentiment: mean-reverts, boosted by stability & growth
   n.sentiment = clamp(
     c.sentiment + (0 - c.sentiment) * 0.05
     + (n.stability - 60) * 0.05
@@ -102,7 +96,6 @@ function tickCountry(c: CountryState, rng: Rng): CountryState {
     -100, 100,
   );
 
-  // equities: driven by sentiment, growth, inversely by rates
   const eqReturn =
     n.sentiment * 0.001 +
     n.growth * 0.005 -
@@ -128,10 +121,8 @@ function computePortfolioPnl(
 
     switch (alloc.asset) {
       case 'sovereign_bonds': {
-        // bonds gain when rates fall
         const rateDelta = prev.interestRate - curr.interestRate;
-        pnl += notional * rateDelta * 0.04; // duration ~4y
-        // carry
+        pnl += notional * rateDelta * 0.04;
         pnl += notional * (curr.interestRate / 100) * 0.25;
         break;
       }
@@ -141,7 +132,6 @@ function computePortfolioPnl(
         break;
       }
       case 'gold': {
-        // gold up when inflation up or sentiment down
         const goldReturn =
           (curr.inflation - prev.inflation) * 0.01 +
           (prev.sentiment - curr.sentiment) * 0.0005;
@@ -215,18 +205,22 @@ function mergeWorldFlags(
   return merged;
 }
 
-function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
-  if (!event.attributionRules || executedDecisions.length === 0) {
+function buildAttributionText(event: GameEvent, executedDecisionIds: string[]): string | null {
+  if (!event.attributionRules || executedDecisionIds.length === 0) {
     return null;
   }
 
+  const executedDecs = executedDecisionIds
+    .map((id) => decisions.find((d) => d.id === id))
+    .filter((d): d is Decision => d !== undefined);
+
   for (const rule of event.attributionRules) {
-    if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
+    if (rule.decisionId && executedDecs.some((decision) => decision.id === rule.decisionId)) {
       return rule.text;
     }
     if (rule.decisionTag) {
       const tag = rule.decisionTag;
-      if (executedDecisions.some((decision) => decision.tags.includes(tag))) {
+      if (executedDecs.some((decision) => decision.tags.includes(tag))) {
         return rule.text;
       }
     }
@@ -240,16 +234,17 @@ export function advanceTurn(state: GameState): GameState {
   const rng = createRng(state.seed + state.turn * 7919);
   const newLog: LogEntry[] = [];
   const turnCausalHints: string[] = [];
-  const executedDecisions: Decision[] = [];
+  const executedDecisionIds: string[] = [];
   let next = structuredClone(state);
   next.outcome = 'ongoing';
+  next.previousCountries = structuredClone(next.countries);
   next.worldFlags = decayWorldFlags(next.worldFlags);
 
   // 1. Apply queued decisions
-  for (const dId of next.pendingDecisions) {
-    const dec = decisions.find((d) => d.id === dId);
+  for (const pending of next.pendingDecisions) {
+    const dec = decisions.find((d) => d.id === pending.decisionId);
     if (!dec) continue;
-    const patch = dec.effect(next);
+    const patch = dec.effect(next, pending.targetCountryId);
     Object.assign(next, patch);
     if (patch.portfolio) next.portfolio = { ...next.portfolio, ...patch.portfolio };
     if (patch.countries) next.countries = patch.countries;
@@ -265,8 +260,11 @@ export function advanceTurn(state: GameState): GameState {
     if (dec.causalHint) {
       turnCausalHints.push(dec.causalHint);
     }
-    executedDecisions.push(dec);
-    newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}`, type: 'action' });
+    executedDecisionIds.push(dec.id);
+    const targetLabel = pending.targetCountryId
+      ? ` (${next.countries.find((c) => c.id === pending.targetCountryId)?.name ?? pending.targetCountryId})`
+      : '';
+    newLog.push({ turn: next.turn + 1, text: `Executed: ${dec.name}${targetLabel}`, type: 'action' });
   }
   next.pendingDecisions = [];
 
@@ -302,7 +300,7 @@ export function advanceTurn(state: GameState): GameState {
     if (ev.causalHint) {
       turnCausalHints.push(ev.causalHint);
     }
-    const attribution = buildAttributionText(ev, executedDecisions);
+    const attribution = buildAttributionText(ev, executedDecisionIds);
     const description = attribution ? `${ev.description} ${attribution}` : ev.description;
     newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
   }
@@ -334,8 +332,8 @@ export function advanceTurn(state: GameState): GameState {
     next.reputation = clamp(next.reputation + reputationDelta, 0, 100);
     turnCausalHints.push(
       reputationDelta > 0
-        ? 'Risk down + stability up -> media pressure eases -> reputation recovers'
-        : 'Risk up or instability -> scrutiny rises -> reputation falls',
+        ? 'Risk down + stability up → media pressure eases → reputation recovers'
+        : 'Risk up or instability → scrutiny rises → reputation falls',
     );
     const repSign = reputationDelta > 0 ? '+' : '';
     newLog.push({
@@ -392,7 +390,7 @@ export function advanceTurn(state: GameState): GameState {
   }
 
   next.lastTurnCausalHints = [...new Set(turnCausalHints)].slice(0, 3);
-  next.lastTurnActions = executedDecisions.map((decision) => decision.id);
+  next.lastTurnActions = executedDecisionIds;
   next.log = [...next.log, ...newLog];
   return next;
 }

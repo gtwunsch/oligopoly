@@ -10,10 +10,11 @@ export function CausalChainHUD() {
 
   return (
     <section className="causal-hud" aria-label="Last turn causal links">
-      <h3>Why things changed last turn</h3>
+      <h3>Why things changed</h3>
       <ul className="causal-list">
         {hints.map((hint) => (
           <li key={hint} className="causal-item">
+            <span className="causal-icon">⟡</span>
             {hint}
           </li>
         ))}

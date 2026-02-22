@@ -19,7 +19,6 @@ function addAllocation(
   } else {
     p.allocations = [...p.allocations, { countryId, asset, weight }];
   }
-  p.cash -= weight * p.aum;
   return { portfolio: p };
 }
 
@@ -45,36 +44,45 @@ function reduceAllocation(
   return { portfolio: p, soldWeight };
 }
 
+function resolveTarget(explicit?: string): string {
+  return explicit ?? 'br';
+}
+
 export const decisions: Decision[] = [
   {
     id: 'buy_sovereign_bonds',
     name: 'Buy Sovereign Bonds',
-    description: 'Benefit: steady carry. Cost: lower upside than equities.',
-    cost: 2,
+    shortDesc: 'Steady carry income, lower upside than equities',
+    description: 'Allocate 5% of AUM to sovereign bonds in the target country. Earns carry from rates but loses value if rates rise.',
+    cost: 5,
     tags: ['bonds', 'income'],
+    category: 'invest',
+    requiresTarget: true,
     unlockTurn: 0,
     reputationDelta: 1,
-    causalHint: 'Rates down -> bond prices up -> carry plus mark-to-market gains',
-    effect: (s) => addAllocation(s, 'br', 'sovereign_bonds', 0.05),
+    causalHint: 'Bond buying → local rates ease → currency strengthens',
+    effect: (s, target) => addAllocation(s, resolveTarget(target), 'sovereign_bonds', 0.05),
   },
   {
     id: 'sell_sovereign_bonds',
     name: 'Sell Sovereign Bonds',
-    description: 'Benefit: raise cash fast. Cost: can destabilize fragile markets.',
+    shortDesc: 'Raise cash fast, but can destabilize fragile markets',
+    description: 'Sell 5% of your bond holdings in the target country. Returns cash but pushes local rates up and hurts stability.',
     cost: 0,
     tags: ['bonds', 'de-risk'],
+    category: 'divest',
+    requiresTarget: true,
     unlockTurn: 4,
     reputationDelta: -2,
-    causalHint: 'Bond selling -> local rates up -> fragile country stability down',
-    effect: (s) => {
-      const { portfolio, soldWeight } = reduceAllocation(s, 'br', 'sovereign_bonds', 0.05);
-      if (soldWeight <= 0) {
-        return { portfolio };
-      }
+    causalHint: 'Bond selling → local rates up → stability down',
+    effect: (s, target) => {
+      const cid = resolveTarget(target);
+      const { portfolio, soldWeight } = reduceAllocation(s, cid, 'sovereign_bonds', 0.05);
+      if (soldWeight <= 0) return { portfolio };
       return {
         portfolio,
         countries: s.countries.map((c) =>
-          c.id === 'br'
+          c.id === cid
             ? {
                 ...c,
                 interestRate: clamp(c.interestRate + 0.2, 0, 20),
@@ -89,48 +97,54 @@ export const decisions: Decision[] = [
   {
     id: 'buy_equities',
     name: 'Buy Equities',
-    description: 'Benefit: higher growth upside. Cost: higher drawdown risk.',
-    cost: 3,
+    shortDesc: 'Higher growth upside, higher drawdown risk',
+    description: 'Allocate 5% of AUM to equities in the target country. Benefits from growth and sentiment, but vulnerable to downturns.',
+    cost: 5,
     tags: ['equities', 'growth'],
+    category: 'invest',
+    requiresTarget: true,
     unlockTurn: 0,
     reputationDelta: -1,
-    causalHint: 'Growth and sentiment up -> equities up -> portfolio beta increases',
-    effect: (s) => {
-      const s1 = addAllocation(s, 'cn', 'equities', 0.025);
-      const merged = { ...s, ...s1, portfolio: { ...s.portfolio, ...s1.portfolio } };
-      return addAllocation(merged, 'br', 'equities', 0.025);
-    },
+    causalHint: 'Equity buying → market sentiment lifts → portfolio beta increases',
+    effect: (s, target) => addAllocation(s, resolveTarget(target), 'equities', 0.05),
   },
   {
     id: 'short_currency',
     name: 'Short Currency',
-    description: 'Benefit: profit on depreciation. Cost: reputation hit from pressure.',
-    cost: 1,
+    shortDesc: 'Profit on depreciation, but draws political heat',
+    description: 'Bet against the target country\'s currency. Profits when FX weakens, but damages your reputation with that government.',
+    cost: 4,
     tags: ['fx', 'macro'],
+    category: 'invest',
+    requiresTarget: true,
     unlockTurn: 4,
     reputationDelta: -2,
-    causalHint: 'Currency weakens -> short position gains -> local stress risk rises',
-    effect: (s) => addAllocation(s, 'br', 'fx_short', 0.04),
+    causalHint: 'FX short → currency pressure builds → local stress rises',
+    effect: (s, target) => addAllocation(s, resolveTarget(target), 'fx_short', 0.04),
   },
   {
     id: 'buy_gold',
     name: 'Buy Gold',
-    description: 'Benefit: inflation hedge. Cost: weaker returns in risk-on markets.',
-    cost: 2,
+    shortDesc: 'Inflation hedge, weaker in risk-on markets',
+    description: 'Allocate 5% of AUM to gold. Rises with inflation and fear, falls when markets are calm. No country exposure.',
+    cost: 5,
     tags: ['gold', 'hedge'],
+    category: 'invest',
     unlockTurn: 0,
-    causalHint: 'Inflation up -> gold demand up -> portfolio hedge improves',
+    causalHint: 'Gold hedge → inflation protected → dampens portfolio volatility',
     effect: (s) => addAllocation(s, 'us', 'gold', 0.05),
   },
   {
     id: 'raise_leverage',
     name: 'Raise Leverage',
-    description: 'Benefit: amplify upside. Cost: amplify losses and fragility.',
+    shortDesc: 'Amplify gains AND losses',
+    description: 'Increase leverage by 0.5x. All positions grow proportionally — great in bull markets, devastating in downturns.',
     cost: 0,
     tags: ['risk'],
+    category: 'risk',
     unlockTurn: 0,
     reputationDelta: -1,
-    causalHint: 'Leverage up -> gains and losses amplify -> bank risk rises',
+    causalHint: 'Leverage up → all P&L amplified → bank risk rises',
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -141,12 +155,14 @@ export const decisions: Decision[] = [
   {
     id: 'reduce_leverage',
     name: 'Reduce Leverage',
-    description: 'Benefit: reduce blow-up risk. Cost: lower upside this turn.',
+    shortDesc: 'Reduce blow-up risk, lower returns',
+    description: 'Decrease leverage by 0.5x. Reduces both upside and downside. Lowers bank risk score.',
     cost: 0,
     tags: ['risk'],
+    category: 'risk',
     unlockTurn: 0,
     reputationDelta: 1,
-    causalHint: 'Leverage down -> volatility dampens -> downside risk falls',
+    causalHint: 'Leverage down → volatility dampens → risk score improves',
     effect: (s) => ({
       portfolio: {
         ...s.portfolio,
@@ -157,45 +173,56 @@ export const decisions: Decision[] = [
   {
     id: 'enter_irs',
     name: 'Interest Rate Swap',
-    description: 'Benefit: hedge rate moves. Cost: derivative complexity and basis risk.',
-    cost: 1,
+    shortDesc: 'Hedge rate moves, adds derivative complexity',
+    description: 'Enter a receive-fixed swap on the target country. Profits when rates fall, loses when rates rise. Adds derivative exposure.',
+    cost: 4,
     tags: ['derivatives', 'rates'],
+    category: 'invest',
+    requiresTarget: true,
     unlockTurn: 8,
     reputationDelta: -1,
-    causalHint: 'Rates fall -> swap mark-to-market rises -> derivative P&L improves',
-    effect: (s) => addAllocation(s, 'us', 'irs', 0.04),
+    causalHint: 'IRS position → rate sensitivity shifts → derivative P&L exposed',
+    effect: (s, target) => addAllocation(s, resolveTarget(target), 'irs', 0.04),
   },
   {
     id: 'provide_liquidity',
     name: 'Provide Liquidity',
-    description: 'Benefit: stabilizes stressed market. Cost: ties up capital now.',
-    cost: 2,
+    shortDesc: 'Stabilize a stressed market, ties up capital',
+    description: 'Inject capital into the target country\'s market. Eases rates, boosts stability and sentiment. Expensive but earns reputation.',
+    cost: 3,
     tags: ['stability', 'intervention'],
+    category: 'political',
+    requiresTarget: true,
     unlockTurn: 6,
     reputationDelta: 2,
-    causalHint: 'Liquidity support -> rates ease -> stability and sentiment improve',
-    effect: (s) => ({
-      countries: s.countries.map((c) =>
-        c.id === 'br'
-          ? {
-              ...c,
-              interestRate: clamp(c.interestRate - 0.35, 0, 20),
-              stability: clamp(c.stability + 4, 0, 100),
-              sentiment: clamp(c.sentiment + 6, -100, 100),
-            }
-          : c,
-      ),
-    }),
+    causalHint: 'Liquidity support → rates ease → stability and sentiment improve',
+    effect: (s, target) => {
+      const cid = resolveTarget(target);
+      return {
+        countries: s.countries.map((c) =>
+          c.id === cid
+            ? {
+                ...c,
+                interestRate: clamp(c.interestRate - 0.35, 0, 20),
+                stability: clamp(c.stability + 4, 0, 100),
+                sentiment: clamp(c.sentiment + 6, -100, 100),
+              }
+            : c,
+        ),
+      };
+    },
   },
   {
     id: 'lobby_pr_spend',
     name: 'Lobby / PR Spend',
-    description: 'Benefit: rebuild reputation. Cost: expensive and slightly dampens sentiment.',
-    cost: 2,
+    shortDesc: 'Rebuild reputation, expensive',
+    description: 'Launch a PR campaign and political lobbying effort. Recovers reputation but costs capital and slightly dampens global sentiment.',
+    cost: 3,
     tags: ['policy', 'reputation'],
+    category: 'political',
     unlockTurn: 8,
     reputationDelta: 6,
-    causalHint: 'PR campaign -> political heat cools -> reputation improves',
+    causalHint: 'PR campaign → political heat cools → reputation improves',
     effect: (s) => ({
       countries: s.countries.map((c) => ({
         ...c,

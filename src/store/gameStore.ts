@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState } from '../sim/types';
+import type { GameState, PendingDecision } from '../sim/types';
 import { createNewGame, advanceTurn, decisions } from '../sim';
 
 const SAVE_KEY = 'macro-sim-save';
@@ -9,8 +9,8 @@ const DEFAULT_LAST_TURN_ACTIONS: string[] = [];
 
 interface GameActions {
   newGame: (scenarioId?: Parameters<typeof createNewGame>[1]) => void;
-  queueDecision: (decisionId: string) => void;
-  removeDecision: (decisionId: string) => void;
+  queueDecision: (decisionId: string, targetCountryId?: string) => void;
+  removeDecision: (decisionId: string, targetCountryId?: string) => void;
   endTurn: () => void;
   dismissSummary: () => void;
   save: () => void;
@@ -29,15 +29,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(g);
   },
 
-  queueDecision: (decisionId: string) => {
+  queueDecision: (decisionId: string, targetCountryId?: string) => {
     const state = get();
     const dec = decisions.find((d) => d.id === decisionId);
     if (!dec) return;
-    if (state.pendingDecisions.includes(decisionId)) return;
     if (dec.unlockTurn !== undefined && state.turn < dec.unlockTurn) return;
     if (dec.cost > state.portfolio.cash) return;
+
+    const alreadyQueued = state.pendingDecisions.some(
+      (p) => p.decisionId === decisionId && p.targetCountryId === targetCountryId,
+    );
+    if (alreadyQueued) return;
+
+    const pending: PendingDecision = { decisionId, targetCountryId };
     set({
-      pendingDecisions: [...state.pendingDecisions, decisionId],
+      pendingDecisions: [...state.pendingDecisions, pending],
       portfolio: {
         ...state.portfolio,
         cash: state.portfolio.cash - dec.cost,
@@ -45,12 +51,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  removeDecision: (decisionId: string) => {
+  removeDecision: (decisionId: string, targetCountryId?: string) => {
     const state = get();
     const dec = decisions.find((d) => d.id === decisionId);
     if (!dec) return;
+
+    const idx = state.pendingDecisions.findIndex(
+      (p) => p.decisionId === decisionId && p.targetCountryId === targetCountryId,
+    );
+    if (idx < 0) return;
+
+    const updated = [...state.pendingDecisions];
+    updated.splice(idx, 1);
     set({
-      pendingDecisions: state.pendingDecisions.filter((id) => id !== decisionId),
+      pendingDecisions: updated,
       portfolio: {
         ...state.portfolio,
         cash: state.portfolio.cash + dec.cost,
@@ -68,6 +82,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       scenarioId: state.scenarioId,
       scenarioName: state.scenarioName,
       countries: state.countries,
+      previousCountries: state.previousCountries,
       eventWeightBias: state.eventWeightBias,
       worldFlags: state.worldFlags,
       portfolio: state.portfolio,
@@ -98,6 +113,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       scenarioId: s.scenarioId,
       scenarioName: s.scenarioName,
       countries: s.countries,
+      previousCountries: s.previousCountries,
       eventWeightBias: s.eventWeightBias,
       worldFlags: s.worldFlags,
       portfolio: s.portfolio,
@@ -121,14 +137,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!raw) return false;
     try {
       const data = JSON.parse(raw) as Partial<GameState>;
+
+      // Migrate old string[] pendingDecisions to PendingDecision[]
+      let pendingDecisions: PendingDecision[] = [];
+      if (Array.isArray(data.pendingDecisions)) {
+        pendingDecisions = data.pendingDecisions
+          .map((item: unknown) => {
+            if (typeof item === 'string') return { decisionId: item };
+            if (item && typeof item === 'object' && 'decisionId' in item) return item as PendingDecision;
+            return null;
+          })
+          .filter((p): p is PendingDecision =>
+            p !== null && decisions.some((d) => d.id === p.decisionId),
+          );
+      }
+
       set({
         ...createNewGame(),
         ...data,
-        pendingDecisions: Array.isArray(data.pendingDecisions)
-          ? data.pendingDecisions.filter(
-            (id): id is string => typeof id === 'string' && decisions.some((decision) => decision.id === id),
-          )
-          : [],
+        pendingDecisions,
+        previousCountries: data.previousCountries ?? data.countries ?? createNewGame().countries,
         reputation: typeof data.reputation === 'number' ? data.reputation : DEFAULT_REPUTATION,
         winTargetAum: typeof data.winTargetAum === 'number' ? data.winTargetAum : 120,
         maxTurns: typeof data.maxTurns === 'number' ? data.maxTurns : 20,
