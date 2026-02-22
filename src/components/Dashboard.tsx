@@ -8,6 +8,7 @@ import { PortfolioPanel } from './PortfolioPanel';
 import { RiskMeter } from './RiskMeter';
 import { EventLog } from './EventLog';
 import { CausalChainHUD } from './CausalChainHUD';
+import { ReplayTools } from './ReplayTools';
 
 export function Dashboard() {
   const { countries, pendingDecisions, turn, scenarioId } = useGameStore();
@@ -89,6 +90,7 @@ export function Dashboard() {
           <button className="btn btn-secondary" onClick={save} title="Save to browser">
             Save
           </button>
+          <ReplayTools />
           <button className="btn btn-primary btn-large" onClick={handleEndTurn}>
             End Turn ▶
           </button>

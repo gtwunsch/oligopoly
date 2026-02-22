@@ -486,6 +486,48 @@ h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   width: 90%;
   text-align: center;
 }
+.replay-modal-card {
+  max-width: 760px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.replay-meta {
+  font-size: 0.78rem;
+}
+.replay-note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.replay-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.replay-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+  padding: 10px;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+.replay-snippet {
+  min-height: 150px;
+}
+.replay-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.replay-close-btn {
+  align-self: flex-end;
+}
 .modal-card h2 { margin-bottom: 16px; }
 .summary-objective {
   margin-top: -6px;

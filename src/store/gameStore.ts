@@ -12,6 +12,12 @@ import {
   pickChoiceEventForTurn,
   rebalanceCashBuckets,
 } from '../sim';
+import {
+  buildReplayPayload,
+  parseReplayPayload,
+  sanitizeReplayTurns,
+  verifyReplayDeterminism,
+} from './replay';
 
 const SAVE_KEY = 'macro-sim-save';
 const SAVE_VERSION = 2;
@@ -33,6 +39,20 @@ const DEFAULT_LAST_TURN_SUMMARY: GameState['lastTurnSummary'] = {
 };
 const OBJECTIVE_WINDOW_TURNS = 3;
 const STABILITY_OBJECTIVE_TARGET = 55;
+const VALID_DECISION_IDS = new Set(decisions.map((decision) => decision.id));
+
+interface ReplayExportData {
+  json: string;
+  hash: string;
+  deterministic: boolean;
+  turnCount: number;
+}
+
+interface ReplayImportResult {
+  ok: boolean;
+  message: string;
+  hash?: string;
+}
 
 type QuarterObjectiveId = 'risk_under_60' | 'stabilize_country' | 'avoid_raise_leverage';
 
@@ -55,6 +75,11 @@ interface UiState {
   quarterObjective: QuarterObjective | null;
   objectivesDismissed: boolean;
   onboardingDismissed: boolean;
+}
+
+interface ReplayState {
+  replayBaseSeed: number;
+  replayTurns: string[][];
 }
 
 interface ObjectiveEvaluationResult {
@@ -349,8 +374,17 @@ function sanitizeLastTurnSummary(
 }
 
 type LegacyPortfolio = Partial<Portfolio> & { cash?: number };
-type PersistedGameState = GameState & { saveVersion: number };
-type LoadedSave = Partial<GameState> & { saveVersion?: number; portfolio?: LegacyPortfolio };
+interface PersistedGameState extends GameState {
+  saveVersion: number;
+  replayBaseSeed?: number;
+  replayTurns?: string[][];
+}
+type LoadedSave = Partial<GameState> & {
+  saveVersion?: number;
+  portfolio?: LegacyPortfolio;
+  replayBaseSeed?: number;
+  replayTurns?: unknown;
+};
 
 function migratePortfolio(rawPortfolio: LegacyPortfolio | undefined, fallback: Portfolio): Portfolio {
   if (!rawPortfolio || typeof rawPortfolio !== 'object') {
@@ -391,26 +425,35 @@ interface GameActions {
   save: () => void;
   load: () => boolean;
   reset: () => void;
+  getReplayExport: () => ReplayExportData;
+  importReplay: (rawPayload: string) => ReplayImportResult;
+  getBugReportSnippet: () => string;
 }
 
-type GameStore = GameState & UiState & GameActions;
+type GameStore = GameState & UiState & ReplayState & GameActions;
 
-export const useGameStore = create<GameStore>((set, get) => ({
-  ...createNewGame(),
-  phase: 'start',
-  quarterObjective: null,
-  objectivesDismissed: false,
-  onboardingDismissed: false,
+export const useGameStore = create<GameStore>((set, get) => {
+  const initialGame = createNewGame();
+  return {
+    ...initialGame,
+    phase: 'start',
+    quarterObjective: null,
+    objectivesDismissed: false,
+    onboardingDismissed: false,
+    replayBaseSeed: initialGame.seed,
+    replayTurns: [],
 
-  newGame: (scenarioId) => {
-    const g = createNewGame(undefined, scenarioId);
-    set({
-      ...g,
-      quarterObjective: createQuarterObjective(g),
-      objectivesDismissed: false,
-      onboardingDismissed: false,
-    });
-  },
+    newGame: (scenarioId) => {
+      const g = createNewGame(undefined, scenarioId);
+      set({
+        ...g,
+        quarterObjective: createQuarterObjective(g),
+        objectivesDismissed: false,
+        onboardingDismissed: false,
+        replayBaseSeed: g.seed,
+        replayTurns: [],
+      });
+    },
 
   queueDecision: (decisionId: string, input?: DecisionExecutionInput) => {
     const state = get();
@@ -455,6 +498,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   endTurn: () => {
     const state = get();
     if (state.phase !== 'playing') return;
+    const executedTurnActions = state.pendingDecisions.filter((decisionId) => VALID_DECISION_IDS.has(decisionId));
     const snapshot: GameState = {
       turn: state.turn,
       year: state.year,
@@ -491,6 +535,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         quarterObjective: state.quarterObjective,
         objectivesDismissed: state.objectivesDismissed,
         onboardingDismissed: state.onboardingDismissed,
+        replayBaseSeed: state.replayBaseSeed,
+        replayTurns: state.replayTurns,
       });
       return;
     }
@@ -541,12 +587,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       quarterObjective: next.phase === 'gameover' ? null : nextObjective,
       objectivesDismissed: state.objectivesDismissed,
       onboardingDismissed: state.onboardingDismissed,
+      replayBaseSeed: state.replayBaseSeed,
+      replayTurns: [...state.replayTurns, executedTurnActions],
     });
   },
 
   resolveChoiceEvent: (choice) => {
     const state = get();
     if (state.phase !== 'choice' || !state.activeChoiceEvent) return;
+    const executedTurnActions = state.pendingDecisions.filter((decisionId) => VALID_DECISION_IDS.has(decisionId));
 
     const withChoiceApplied = applyChoiceEvent(state, state.activeChoiceEvent.id, choice);
     const snapshot: GameState = {
@@ -622,6 +671,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       quarterObjective: next.phase === 'gameover' ? null : nextObjective,
       objectivesDismissed: state.objectivesDismissed,
       onboardingDismissed: state.onboardingDismissed,
+      replayBaseSeed: state.replayBaseSeed,
+      replayTurns: [...state.replayTurns, executedTurnActions],
     });
   },
 
@@ -659,6 +710,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       seed: s.seed,
       score: s.score,
       saveVersion: SAVE_VERSION,
+      replayBaseSeed: s.replayBaseSeed,
+      replayTurns: s.replayTurns,
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   },
@@ -671,6 +724,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const base = createNewGame();
       const pendingDecisions = sanitizePendingDecisions(data.pendingDecisions);
       const activeChoiceEvent = sanitizeActiveChoiceEvent(data.activeChoiceEvent);
+      const replayTurns = sanitizeReplayTurns(data.replayTurns);
+      const replayBaseSeed = typeof data.replayBaseSeed === 'number' && Number.isFinite(data.replayBaseSeed)
+        ? data.replayBaseSeed
+        : typeof data.seed === 'number' && Number.isFinite(data.seed)
+          ? data.seed
+          : base.seed;
       set({
         ...base,
         ...data,
@@ -717,6 +776,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }),
         objectivesDismissed: false,
         onboardingDismissed: false,
+        replayBaseSeed,
+        replayTurns,
       });
       return true;
     } catch {
@@ -726,12 +787,101 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   reset: () => {
     localStorage.removeItem(SAVE_KEY);
+    const freshGame = createNewGame(undefined, DEFAULT_SCENARIO_ID);
     set({
-      ...createNewGame(undefined, DEFAULT_SCENARIO_ID),
+      ...freshGame,
       phase: 'start',
       quarterObjective: null,
       objectivesDismissed: false,
       onboardingDismissed: false,
+      replayBaseSeed: freshGame.seed,
+      replayTurns: [],
     });
   },
-}));
+
+  getReplayExport: () => {
+    const state = get();
+    const payload = buildReplayPayload(state.replayBaseSeed, state.scenarioId, state.replayTurns);
+    const verification = verifyReplayDeterminism(payload);
+    return {
+      json: JSON.stringify(payload, null, 2),
+      hash: verification.hash,
+      deterministic: verification.deterministic,
+      turnCount: payload.turns.length,
+    };
+  },
+
+  importReplay: (rawPayload: string) => {
+    try {
+      const payload = parseReplayPayload(rawPayload);
+      const verification = verifyReplayDeterminism(payload);
+      if (!verification.deterministic) {
+        return {
+          ok: false,
+          message: 'Replay determinism check failed. Payload may be inconsistent.',
+        };
+      }
+
+      const replayState = verification.state;
+      const importedObjective = replayState.phase === 'gameover'
+        ? null
+        : createQuarterObjective({
+          turn: replayState.turn,
+          countries: replayState.countries,
+        });
+
+      set({
+        ...replayState,
+        phase: replayState.phase === 'gameover' ? 'gameover' : 'playing',
+        pendingDecisions: [],
+        activeChoiceEvent: null,
+        quarterObjective: importedObjective,
+        objectivesDismissed: false,
+        onboardingDismissed: true,
+        replayBaseSeed: payload.seed,
+        replayTurns: payload.turns.map((turn) => [...turn.actions]),
+      });
+
+      return {
+        ok: true,
+        message: `Replay imported (turn ${replayState.turn}, hash ${verification.hash}).`,
+        hash: verification.hash,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Unable to import replay payload.',
+      };
+    }
+  },
+
+  getBugReportSnippet: () => {
+    const state = get();
+    const payload = buildReplayPayload(state.replayBaseSeed, state.scenarioId, state.replayTurns);
+    const verification = verifyReplayDeterminism(payload);
+    const mostRecentActions =
+      state.lastTurnActions.length > 0
+        ? state.lastTurnActions
+        : state.replayTurns[state.replayTurns.length - 1] ?? [];
+    const lastEventEntry = [...state.log].reverse().find((entry) => entry.type === 'event');
+    const lastEventHeadline = lastEventEntry ? lastEventEntry.text.split(':')[0] : undefined;
+
+    const lines = [
+      'Bug Report Snippet',
+      `seed: ${state.replayBaseSeed}`,
+      `scenario: ${state.scenarioId}`,
+      `turn: ${state.turn}`,
+      `last_actions: ${mostRecentActions.length > 0 ? mostRecentActions.join(', ') : 'none'}`,
+      `risk: ${state.portfolio.riskScore}`,
+      `reputation: ${state.reputation}`,
+      `cash_available: ${state.portfolio.cashAvailable.toFixed(2)}B`,
+      `replay_turns: ${state.replayTurns.length}`,
+      `replay_hash: ${verification.hash}`,
+    ];
+    if (lastEventHeadline) {
+      lines.push(`last_event: ${lastEventHeadline}`);
+    }
+    return lines.join('\n');
+  },
+  };
+});

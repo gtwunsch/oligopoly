@@ -260,6 +260,9 @@ Event personalization rules (lightweight only):
   - 30-turn simulation with simple seeded random actions => no `NaN`/`Infinity`.
   - Global meters remain in range (`reputation`, `riskScore`, `liquidity`).
 - Run with `npm test`.
+- Replay tooling baseline is implemented in store plumbing:
+  - `src/store/replay.ts` (payload parse/run/hash/verification)
+  - `src/store/gameStore.ts` + `src/components/ReplayTools.tsx` (export/import/snippet UI)
 
 ### Dev panel (dev-only, hidden in production)
 - Current seed
