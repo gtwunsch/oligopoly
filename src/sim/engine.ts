@@ -133,8 +133,7 @@ function computePortfolioPnl(
         const goldReturn =
           (curr.inflation - prev.inflation) * 0.01 +
           (prev.sentiment - curr.sentiment) * 0.0005;
-        const avgGoldReturn = newCountries.reduce((s, c, _, a) => s + goldReturn / a.length, 0);
-        pnl += notional * avgGoldReturn;
+        pnl += notional * goldReturn;
         break;
       }
       case 'fx_short': {
