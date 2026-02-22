@@ -15,7 +15,7 @@ function summarizeState(state: GameState) {
     score: state.score,
     portfolio: {
       aum: round(state.portfolio.aum, 4),
-      cash: round(state.portfolio.cash, 4),
+      cashAvailable: round(state.portfolio.cashAvailable, 4),
       leverage: round(state.portfolio.leverage, 4),
       riskScore: state.portfolio.riskScore,
       liquidity: state.portfolio.liquidity,
