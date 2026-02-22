@@ -55,11 +55,14 @@ export interface Decision {
 export interface GameEvent {
   id: string;
   name: string;
+  headlineTemplates?: string[];
   description: string;
+  why: string;
   weight: number;           // relative probability
   trigger?: (state: GameState) => boolean;
   reputationDelta?: number;
   causalHint?: string;
+  useLastActionLead?: boolean;
   attributionRules?: {
     decisionId?: string;
     decisionTag?: string;

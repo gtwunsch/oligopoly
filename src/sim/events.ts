@@ -18,14 +18,20 @@ export const events: GameEvent[] = [
   {
     id: 'fed_hike',
     name: 'Fed Rate Hike',
+    headlineTemplates: [
+      'Fed Delivers Another Hike',
+      'US Rates Move Higher',
+      'Fed Tightens Policy Again',
+    ],
     description: 'The Federal Reserve raises rates by 25bp.',
+    why: 'US inflation stayed above target, so policymakers tightened financial conditions.',
     weight: 3,
     reputationDelta: -1,
     causalHint: 'US inflation up -> Fed hikes rates -> global risk appetite softens',
     attributionRules: [
       {
-        decisionTag: 'risk',
-        text: 'Your leverage choices magnified sensitivity to tighter policy.',
+        decisionId: 'raise_leverage',
+        text: 'Your leverage increase left the book more exposed to tighter policy.',
       },
     ],
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation > 3,
@@ -40,14 +46,20 @@ export const events: GameEvent[] = [
   {
     id: 'fed_cut',
     name: 'Fed Rate Cut',
+    headlineTemplates: [
+      'Fed Signals Relief With Cut',
+      'US Policy Rate Trimmed',
+      'Fed Eases as Inflation Cools',
+    ],
     description: 'The Federal Reserve cuts rates by 25bp.',
+    why: 'Cooling inflation and softer demand gave room for a modest easing step.',
     weight: 2,
     reputationDelta: 1,
     causalHint: 'US inflation cools -> Fed cuts rates -> sentiment improves',
     attributionRules: [
       {
         decisionId: 'provide_liquidity',
-        text: 'Your liquidity support helped calm markets before the cut.',
+        text: 'After your liquidity support, markets were calmer heading into the cut.',
       },
     ],
     trigger: (s) => s.countries.find((c) => c.id === 'us')!.inflation < 2,
@@ -62,14 +74,20 @@ export const events: GameEvent[] = [
   {
     id: 'china_stimulus',
     name: 'China Stimulus Package',
+    headlineTemplates: [
+      'Beijing Unveils Fresh Stimulus',
+      'China Adds Fiscal Support',
+      'China Moves to Stabilize Growth',
+    ],
     description: 'Beijing announces fiscal stimulus. Growth outlook improves.',
+    why: 'Weak activity data pushed authorities to backstop demand and confidence.',
     weight: 2,
     reputationDelta: 1,
     causalHint: 'Policy stimulus -> growth expectations rise -> sentiment improves',
     attributionRules: [
       {
         decisionId: 'short_currency',
-        text: 'Your FX pressure contributed to urgency around support measures.',
+        text: 'After your FX short expansion, support measures became more urgent.',
       },
     ],
     effect: (s) => {
@@ -84,18 +102,25 @@ export const events: GameEvent[] = [
   {
     id: 'em_crisis',
     name: 'EM Currency Crisis',
+    headlineTemplates: [
+      'EM FX Rout Deepens',
+      'Currency Stress Hits Emerging Markets',
+      'Contagion Fears Return in EM',
+    ],
     description: 'Emerging market currencies plunge. Contagion fears rise.',
+    why: 'Funding stress and thin liquidity triggered broad selling across fragile FX markets.',
     weight: 1,
     reputationDelta: -4,
     causalHint: 'Stability down -> currency selloff deepens -> contagion fears rise',
+    useLastActionLead: true,
     attributionRules: [
       {
         decisionId: 'sell_sovereign_bonds',
-        text: 'Your sovereign bond selling amplified Brazil funding stress.',
+        text: 'After your bond sell-off, Brazil funding stress intensified.',
       },
       {
         decisionId: 'short_currency',
-        text: 'Your currency short added pressure to already fragile FX markets.',
+        text: 'After your FX short expansion, market depth dried up faster.',
       },
       {
         decisionId: 'provide_liquidity',
@@ -115,7 +140,13 @@ export const events: GameEvent[] = [
   {
     id: 'oil_spike',
     name: 'Oil Price Spike',
+    headlineTemplates: [
+      'Oil Prices Jump on Supply Risk',
+      'Energy Shock Lifts Inflation Risk',
+      'Crude Spike Ripples Through Markets',
+    ],
     description: 'Geopolitical tensions push oil prices up. Inflation risk.',
+    why: 'A supply disruption repriced energy costs and lifted near-term inflation expectations.',
     weight: 2,
     reputationDelta: -2,
     causalHint: 'Oil shock -> inflation pressure rises -> policy risk increases',
@@ -130,14 +161,20 @@ export const events: GameEvent[] = [
   {
     id: 'tech_rally',
     name: 'Global Tech Rally',
+    headlineTemplates: [
+      'Tech Stocks Lead Global Rally',
+      'AI Optimism Drives Equity Surge',
+      'Growth Shares Outperform Broadly',
+    ],
     description: 'AI optimism fuels a tech-led equity rally.',
+    why: 'Stronger earnings guidance and lower rate fears boosted demand for growth stocks.',
     weight: 2,
     reputationDelta: 1,
     causalHint: 'Risk appetite up -> equities rally -> portfolio beta pays',
     attributionRules: [
       {
         decisionId: 'buy_equities',
-        text: 'Your equity positioning was aligned with this move.',
+        text: 'After your equity build-up, your book was positioned for this move.',
       },
     ],
     effect: (s) => ({
@@ -151,14 +188,21 @@ export const events: GameEvent[] = [
   {
     id: 'eu_recession',
     name: 'Eurozone Recession Warning',
+    headlineTemplates: [
+      'Eurozone Activity Slips Again',
+      'Recession Risk Builds in Europe',
+      'Euro Area Growth Warning Intensifies',
+    ],
     description: 'PMI data signals contraction in the Eurozone.',
+    why: 'Weak PMIs and tighter credit pointed to slower demand across the bloc.',
     weight: 1,
     reputationDelta: -2,
     causalHint: 'Growth warning -> sentiment falls -> equities reprice lower',
+    useLastActionLead: true,
     attributionRules: [
       {
         decisionId: 'raise_leverage',
-        text: 'Your higher leverage made this slowdown harder to absorb.',
+        text: 'Your leverage increase made this slowdown harder to absorb.',
       },
     ],
     trigger: (s) => s.countries.find((c) => c.id === 'eu')!.growth < 1,
@@ -174,7 +218,13 @@ export const events: GameEvent[] = [
   {
     id: 'japan_ycc_end',
     name: 'Japan Ends Yield Curve Control',
+    headlineTemplates: [
+      'BoJ Ends Yield Curve Control',
+      'Japan Policy Surprise Jolts Rates',
+      'Yen Jumps After BoJ Shift',
+    ],
     description: 'BoJ surprises markets by ending YCC. Yen surges.',
+    why: 'Persistent domestic inflation increased pressure for policy normalization.',
     weight: 1,
     reputationDelta: -1,
     causalHint: 'Policy surprise -> rates jump -> FX volatility rises',
@@ -191,18 +241,25 @@ export const events: GameEvent[] = [
   {
     id: 'em_pressure_warning',
     name: 'EM Funding Pressure',
+    headlineTemplates: [
+      'EM Funding Spreads Widen',
+      'Brazil Faces Renewed Funding Stress',
+      'Early Warning: EM Pressure Rising',
+    ],
     description: 'Funding spreads widen in Brazil and confidence slips.',
+    why: 'Lower confidence raised refinancing costs and cut risk tolerance for Brazil assets.',
     weight: 1.5,
     reputationDelta: -1,
     causalHint: 'Stability slips -> funding stress builds -> crisis odds rise',
+    useLastActionLead: true,
     attributionRules: [
       {
         decisionId: 'sell_sovereign_bonds',
-        text: 'Your bond selling helped accelerate that pressure.',
+        text: 'After your bond sell-off, spreads widened faster.',
       },
       {
         decisionId: 'short_currency',
-        text: 'Your FX short added to market nerves.',
+        text: 'After your FX short expansion, market nerves escalated.',
       },
     ],
     trigger: (s) =>
@@ -229,10 +286,31 @@ export const events: GameEvent[] = [
   {
     id: 'capital_flight_wave',
     name: 'Capital Flight Wave',
+    headlineTemplates: [
+      'Capital Outflows Accelerate in Brazil',
+      'Investors Pull Back From EM Risk',
+      'Flight to Safety Hits Brazil Assets',
+    ],
     description: 'Investors pull capital out of Brazil as panic grows.',
+    why: 'Ongoing uncertainty pushed investors toward liquid safe-haven positions.',
     weight: 1.2,
     reputationDelta: -2,
     causalHint: 'Pressure persists -> outflows accelerate -> FX and stability weaken',
+    useLastActionLead: true,
+    attributionRules: [
+      {
+        decisionId: 'sell_sovereign_bonds',
+        text: 'Your bond sell-off reinforced the outflow impulse.',
+      },
+      {
+        decisionId: 'short_currency',
+        text: 'Your FX short expansion amplified local defensive positioning.',
+      },
+      {
+        decisionId: 'provide_liquidity',
+        text: 'Your liquidity support slowed the speed of exits at the margin.',
+      },
+    ],
     trigger: (s) => (s.worldFlags.em_pressure ?? 0) > 0,
     effect: (s) => {
       const br = s.countries.find((c) => c.id === 'br')!;
@@ -256,7 +334,13 @@ export const events: GameEvent[] = [
   {
     id: 'imf_backstop',
     name: 'Emergency IMF Backstop',
+    headlineTemplates: [
+      'IMF Backstop Calms EM Volatility',
+      'Emergency Financing Package Announced',
+      'Policy Support Slows Outflow Cycle',
+    ],
     description: 'Emergency financing package slows the EM selloff.',
+    why: 'Coordinated external funding reduced immediate rollover risk and restored confidence.',
     weight: 1.1,
     reputationDelta: 2,
     causalHint: 'Emergency support -> rates ease -> confidence partially recovers',
@@ -267,7 +351,7 @@ export const events: GameEvent[] = [
       },
       {
         decisionId: 'lobby_pr_spend',
-        text: 'Your political outreach helped unlock policy support.',
+        text: 'Your outreach campaign helped unlock policy support.',
       },
     ],
     trigger: (s) =>
@@ -296,10 +380,27 @@ export const events: GameEvent[] = [
   {
     id: 'regulatory_warning',
     name: 'Regulatory Warning',
+    headlineTemplates: [
+      'Supervisors Issue Risk Warning',
+      'Regulators Flag Elevated Risk Profile',
+      'Oversight Tightens on Your Bank',
+    ],
     description: 'Supervisors flag your risk profile and demand restraint.',
+    why: 'High portfolio risk metrics triggered closer supervisory scrutiny.',
     weight: 1.0,
     reputationDelta: -2,
     causalHint: 'Risk runs hot -> oversight tightens -> policy pressure rises',
+    useLastActionLead: true,
+    attributionRules: [
+      {
+        decisionId: 'raise_leverage',
+        text: 'Your leverage increase pushed risk metrics into supervisory focus.',
+      },
+      {
+        decisionId: 'reduce_leverage',
+        text: 'Your deleveraging move helped, but risk metrics stayed in the warning zone.',
+      },
+    ],
     trigger: (s) =>
       s.portfolio.riskScore > 72 &&
       (s.worldFlags.reg_watch ?? 0) === 0,
@@ -312,10 +413,27 @@ export const events: GameEvent[] = [
   {
     id: 'regulatory_crackdown',
     name: 'Regulatory Crackdown',
+    headlineTemplates: [
+      'Regulators Order Forced De-Risking',
+      'Formal Crackdown Hits Leverage',
+      'Supervisory Action Escalates',
+    ],
     description: 'Regulators force de-risking after persistent market pressure.',
+    why: 'Repeated warnings and weak credibility forced a direct intervention.',
     weight: 0.9,
     reputationDelta: -3,
     causalHint: 'Warnings ignored -> crackdown hits -> leverage is forced lower',
+    useLastActionLead: true,
+    attributionRules: [
+      {
+        decisionId: 'raise_leverage',
+        text: 'Your leverage increase made a forced unwind more likely.',
+      },
+      {
+        decisionId: 'lobby_pr_spend',
+        text: 'Your outreach campaign was not enough to offset supervisory pressure.',
+      },
+    ],
     trigger: (s) =>
       (s.worldFlags.reg_watch ?? 0) > 0 &&
       s.reputation < 45,
@@ -332,7 +450,13 @@ export const events: GameEvent[] = [
   {
     id: 'risk_on',
     name: 'Risk-On Sentiment Wave',
+    headlineTemplates: [
+      'Risk Appetite Improves Globally',
+      'Investors Rotate Back Into Risk',
+      'Broad Risk-On Session Lifts Equities',
+    ],
     description: 'Global investors rotate into risk assets.',
+    why: 'Macro data stabilized and volatility eased, supporting stronger equity demand.',
     weight: 3,
     reputationDelta: 1,
     causalHint: 'Sentiment improves -> investors buy risk -> equities grind higher',
@@ -353,14 +477,21 @@ export const events: GameEvent[] = [
   {
     id: 'risk_off',
     name: 'Risk-Off Flight to Safety',
+    headlineTemplates: [
+      'Risk-Off Move Hits Equities',
+      'Flight to Safety Returns',
+      'Defensive Positioning Spreads',
+    ],
     description: 'Investors flee to bonds and gold. Equities dip.',
+    why: 'Volatility rose after growth concerns, prompting a broad cut in risk exposure.',
     weight: 2,
     reputationDelta: -1,
     causalHint: 'Fear rises -> risk assets sold -> equity indices weaken',
+    useLastActionLead: true,
     attributionRules: [
       {
         decisionId: 'raise_leverage',
-        text: 'Your leveraged book amplified downside during the selloff.',
+        text: 'Your leverage increase amplified downside during the selloff.',
       },
       {
         decisionId: 'buy_gold',

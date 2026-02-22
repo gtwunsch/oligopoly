@@ -2,6 +2,7 @@ import type { CountryState, Decision, GameEvent, GameState, LogEntry, Portfolio 
 import { createRng } from './rng';
 import type { Rng } from './rng';
 import { events } from './events';
+import { buildEventHeadline, buildEventWhy } from './eventText';
 import { initialCountries } from './countries';
 import { decisions } from './decisions';
 import { applyScenarioCountries, DEFAULT_SCENARIO_ID, getScenarioById } from './scenarios';
@@ -215,10 +216,18 @@ function mergeWorldFlags(
   return merged;
 }
 
-function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): string | null {
-  if (!event.attributionRules || executedDecisions.length === 0) {
+function buildAttributionText(
+  event: GameEvent,
+  executedDecisions: Decision[],
+  previousActionIds: string[],
+): string | null {
+  if (!event.attributionRules) {
     return null;
   }
+
+  const previousTurnDecisions = previousActionIds
+    .map((actionId) => decisions.find((decision) => decision.id === actionId))
+    .filter((decision): decision is Decision => Boolean(decision));
 
   for (const rule of event.attributionRules) {
     if (rule.decisionId && executedDecisions.some((decision) => decision.id === rule.decisionId)) {
@@ -227,6 +236,18 @@ function buildAttributionText(event: GameEvent, executedDecisions: Decision[]): 
     if (rule.decisionTag) {
       const tag = rule.decisionTag;
       if (executedDecisions.some((decision) => decision.tags.includes(tag))) {
+        return rule.text;
+      }
+    }
+  }
+
+  for (const rule of event.attributionRules) {
+    if (rule.decisionId && previousTurnDecisions.some((decision) => decision.id === rule.decisionId)) {
+      return rule.text;
+    }
+    if (rule.decisionTag) {
+      const tag = rule.decisionTag;
+      if (previousTurnDecisions.some((decision) => decision.tags.includes(tag))) {
         return rule.text;
       }
     }
@@ -302,9 +323,11 @@ export function advanceTurn(state: GameState): GameState {
     if (ev.causalHint) {
       turnCausalHints.push(ev.causalHint);
     }
-    const attribution = buildAttributionText(ev, executedDecisions);
-    const description = attribution ? `${ev.description} ${attribution}` : ev.description;
-    newLog.push({ turn: next.turn + 1, text: `${ev.name}: ${description}`, type: 'event' });
+    const headline = buildEventHeadline(ev, next);
+    const why = buildEventWhy(ev, next, executedDecisions, decisions);
+    const attribution = buildAttributionText(ev, executedDecisions, next.lastTurnActions);
+    const details = attribution ? `${why} ${attribution}` : why;
+    newLog.push({ turn: next.turn + 1, text: `${headline}: ${details}`, type: 'event' });
   }
 
   // 4. PnL
