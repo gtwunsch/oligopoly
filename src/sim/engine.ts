@@ -333,7 +333,7 @@ export function advanceTurn(state: GameState): GameState {
   const turnCausalHints: string[] = [];
   const executedDecisions: Decision[] = [];
   const turnActionHistory: ActionHistoryEntry[] = [];
-  let next = structuredClone(state);
+  const next = structuredClone(state);
   next.outcome = 'ongoing';
   next.worldFlags = decayWorldFlags(next.worldFlags);
 
