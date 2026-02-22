@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { KPIBar } from './KPIBar';
 import { CountryCard } from './CountryCard';
@@ -16,9 +16,10 @@ export function Dashboard() {
 
   const showTutorial = turn < 2;
 
-  useEffect(() => {
+  const handleEndTurn = () => {
     setPreviewDecisionId(null);
-  }, [turn]);
+    endTurn();
+  };
 
   return (
     <div className="dashboard">
@@ -62,7 +63,7 @@ export function Dashboard() {
           <button className="btn btn-secondary" onClick={save} title="Save to browser">
             Save
           </button>
-          <button className="btn btn-primary btn-large" onClick={endTurn}>
+          <button className="btn btn-primary btn-large" onClick={handleEndTurn}>
             End Turn ▶
           </button>
         </div>
