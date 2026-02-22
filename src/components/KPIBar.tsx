@@ -5,7 +5,11 @@ function fmt(n: number, decimals = 1): string {
   return n.toFixed(decimals);
 }
 
-export function KPIBar() {
+interface KPIBarProps {
+  onboardingStep: number | null;
+}
+
+export function KPIBar({ onboardingStep }: KPIBarProps) {
   const { year, quarter, turn, scenarioName, portfolio, reputation, winTargetAum, maxTurns, score } = useGameStore();
   const turnsLeft = Math.max(0, maxTurns - turn);
   const cashLock = computeCashLockDrivers(portfolio);
@@ -17,6 +21,10 @@ export function KPIBar() {
     `Concentration buffer: $${fmt(cashLock.concentrationBuffer)}B`,
     'Lower leverage releases locked cash gradually over turns.',
   ].join('\n');
+  const onboardingCashTooltip = 'Available cash can be deployed now. Locked cash is collateral/reserve.';
+  const reputationTooltip = onboardingStep === 3
+    ? 'Reputation drives political heat. Lobby / PR can recover it later.'
+    : undefined;
 
   return (
     <header className="kpi-bar">
@@ -40,10 +48,17 @@ export function KPIBar() {
         <span className="kpi-label">AUM</span>
         <span className="kpi-value">${fmt(portfolio.aum)}B</span>
       </div>
-      <div className="kpi kpi-cash" title={cashTooltip}>
+      <div
+        className={`kpi kpi-cash ${onboardingStep === 2 ? 'kpi-highlight' : ''}`}
+        title={onboardingStep === 2 ? `${onboardingCashTooltip}\n${cashTooltip}` : cashTooltip}
+      >
         <span className="kpi-label">
           Cash
-          <span className="kpi-help" aria-label="Why cash is locked" title={cashTooltip}>
+          <span
+            className="kpi-help"
+            aria-label="Why cash is locked"
+            title={onboardingStep === 2 ? `${onboardingCashTooltip}\n${cashTooltip}` : cashTooltip}
+          >
             ?
           </span>
         </span>
@@ -61,7 +76,7 @@ export function KPIBar() {
           {portfolio.riskScore}
         </span>
       </div>
-      <div className="kpi">
+      <div className={`kpi ${onboardingStep === 3 ? 'kpi-highlight' : ''}`} title={reputationTooltip}>
         <span className="kpi-label">Reputation</span>
         <span className={`kpi-value ${reputation < 35 ? 'text-danger' : reputation < 60 ? 'text-warn' : 'text-safe'}`}>
           {reputation}

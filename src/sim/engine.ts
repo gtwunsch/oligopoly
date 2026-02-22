@@ -32,11 +32,11 @@ function buildActionHistoryEntry(turn: number, decisionId: string): ActionHistor
     case 'sell_sovereign_bonds':
       return { turn, actionId: decisionId, target: 'br', magnitude: -0.05 };
     case 'short_currency':
-      return { turn, actionId: decisionId, target: 'br', magnitude: 0.04 };
+      return { turn, actionId: decisionId, target: 'br', magnitude: 0.05 };
     case 'provide_liquidity':
-      return { turn, actionId: decisionId, target: 'br', magnitude: 0.35 };
+      return { turn, actionId: decisionId, target: 'br', magnitude: 0.4 };
     case 'raise_leverage':
-      return { turn, actionId: decisionId, magnitude: 0.5 };
+      return { turn, actionId: decisionId, magnitude: 0.75 };
     case 'reduce_leverage':
       return { turn, actionId: decisionId, magnitude: -0.5 };
     case 'enter_irs':
@@ -53,17 +53,17 @@ function computeActionReputationDelta(decision: Decision, stateBeforeDecision: G
 
   switch (decision.id) {
     case 'short_currency':
-      return -2;
+      return -3;
     case 'raise_leverage':
-      return -1;
+      return -2;
     case 'sell_sovereign_bonds':
-      return isFragile ? -2 : 0;
+      return isCrisis ? -3 : isFragile ? -2 : -1;
     case 'provide_liquidity':
-      return isCrisis ? 2 : 1;
+      return isCrisis ? 3 : 2;
     case 'reduce_leverage':
-      return 1;
+      return 2;
     case 'buy_sovereign_bonds':
-      return isCrisis ? 1 : 0;
+      return isCrisis ? 2 : 1;
     default:
       return decision.reputationDelta ?? 0;
   }
@@ -241,6 +241,14 @@ function computePortfolioPnl(
 
 // ── Risk score (simple) ──
 
+function computeConcentrationPenalty(portfolio: Portfolio): number {
+  const largestWeight = portfolio.allocations.reduce(
+    (maxWeight, allocation) => Math.max(maxWeight, allocation.weight),
+    0,
+  );
+  return largestWeight * 30;
+}
+
 function computeRisk(portfolio: Portfolio, countries: CountryState[]): number {
   const allocWeight = portfolio.allocations.reduce((s, a) => s + a.weight, 0);
   const riskyWeight = portfolio.allocations
@@ -253,6 +261,7 @@ function computeRisk(portfolio: Portfolio, countries: CountryState[]): number {
   const risk =
     allocWeight * 30 +
     riskyWeight * 25 +
+    computeConcentrationPenalty(portfolio) +
     (portfolio.leverage - 1) * 15 -
     (avgStability - 50) * 0.3;
 
